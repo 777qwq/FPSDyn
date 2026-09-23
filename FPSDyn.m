@@ -274,10 +274,8 @@ static void saveState(void){
     @try {
         NSMutableDictionary* d = [loadPrefs() mutableCopy] ?: [NSMutableDictionary dictionary];
         [d setObject:[NSNumber numberWithInt:g_manualColor] forKey:@"colorIndex"];
-        if(g_trailC && g_topC){
-            [d setObject:[NSNumber numberWithDouble:g_dragX] forKey:@"dragX"];
-            [d setObject:[NSNumber numberWithDouble:g_dragY] forKey:@"dragY"];
-        }
+        [d setObject:[NSNumber numberWithDouble:g_dragX] forKey:@"dragX"];
+        [d setObject:[NSNumber numberWithDouble:g_dragY] forKey:@"dragY"];
         [d writeToFile:@PREF_PATH atomically:YES];
     } @catch (NSException* e) {
         dlog(@"EXC in saveState: %@", e);
