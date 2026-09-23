@@ -96,34 +96,50 @@ static BOOL pBool(NSDictionary* d, NSString* k, BOOL def){
 
 // 带中文注释的 XML 写入器（拖动/点击/初始化统一走这里，注释永久保留）
 static void writeConfigXML(NSDictionary* m){
-    id (^v)(NSString*, id) = ^id(NSString* k, id def){ id o = [m objectForKey:k]; return o ? o : def; };
     NSMutableString* x = [NSMutableString string];
     [x appendString:@"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
      "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
      "<plist version=\"1.0\">\n<dict>\n"];
-    [x appendFormat:@"\t<!-- 颜色档：0=自动阈值变色 1=跟随系统 2=荧光绿 3=COD黄 4=霓虹青 5=半透明白 6=性能红 -->\n"
-     "\t<key>colorIndex</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"colorIndex", @0) intValue]];
-    [x appendFormat:@"\t<!-- 距右边缘（像素） -->\n\t<key>dragX</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"dragX", @20) doubleValue]);
-    [x appendFormat:@"\t<!-- 距顶边缘（像素） -->\n\t<key>dragY</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"dragY", @60) doubleValue]);
-    [x appendFormat:@"\t<!-- 显示开关 0=关 1=开 -->\n\t<key>enabled</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"enabled", @1) intValue]];
-    [x appendFormat:@"\t<!-- 字号 -->\n\t<key>fontSize</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"fontSize", @16) intValue]];
-    [x appendFormat:@"\t<!-- 粗细 100最细 300细 400常规 600半粗 900最粗 -->\n\t<key>fontWeight</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"fontWeight", @600) intValue]];
-    [x appendFormat:@"\t<!-- 锁屏隐藏 0=关 1=开 -->\n\t<key>hideOnLock</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"hideOnLock", @1) intValue]];
-    [x appendFormat:@"\t<!-- 初始距右边缘（拖动后由 dragX 接管） -->\n\t<key>offsetX</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"offsetX", @20) doubleValue]
-    [x appendFormat:@"\t<!-- 初始距顶边缘 -->\n\t<key>offsetY</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"offsetY", @60) doubleValue]
-    [x appendFormat:@"\t<!-- 位置锁定 1=禁止拖动 -->\n\t<key>lockPos</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"lockPos", @0) intValue]];
-    [x appendFormat:@"\t<!-- 日志 0=关 1=写 /var/mobile/Library/FPSDyn.log -->\n\t<key>log</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"log", @0) intValue]];
-    [x appendFormat:@"\t<!-- 文字阴影 0=关 1=开 -->\n\t<key>shadow</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"shadow", @0) intValue]];
-    [x appendFormat:@"\t<!-- 阴影色 RRGGBBAA（默认黑色 80% 透明） -->\n\t<key>shadowColor</key>\n\t<string>%@</string>\n", v(@"shadowColor", @"000000CC")];
-    [x appendFormat:@"\t<!-- 阴影模糊半径 -->\n\t<key>shadowBlur</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"shadowBlur", @4) doubleValue]);
-    [x appendFormat:@"\t<!-- 阴影水平偏移 -->\n\t<key>shadowOffsetX</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"shadowOffsetX", @0) doubleValue]);
-    [x appendFormat:@"\t<!-- 阴影垂直偏移 -->\n\t<key>shadowOffsetY</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"shadowOffsetY", @1) doubleValue]);
-    // 阈值变色
+
+    NSNumber* colorIndex = [m objectForKey:@"colorIndex"] ?: @0;
+    NSNumber* dragX      = [m objectForKey:@"dragX"] ?: @20;
+    NSNumber* dragY      = [m objectForKey:@"dragY"] ?: @60;
+    NSNumber* enabled    = [m objectForKey:@"enabled"] ?: @1;
+    NSNumber* fontSize   = [m objectForKey:@"fontSize"] ?: @16;
+    NSNumber* fontWeight = [m objectForKey:@"fontWeight"] ?: @600;
+    NSNumber* hideOnLock = [m objectForKey:@"hideOnLock"] ?: @1;
+    NSNumber* offsetX    = [m objectForKey:@"offsetX"] ?: @20;
+    NSNumber* offsetY    = [m objectForKey:@"offsetY"] ?: @60;
+    NSNumber* lockPos    = [m objectForKey:@"lockPos"] ?: @0;
+    NSNumber* log        = [m objectForKey:@"log"] ?: @0;
+    NSNumber* shadow     = [m objectForKey:@"shadow"] ?: @0;
+    NSNumber* shadowBlur = [m objectForKey:@"shadowBlur"] ?: @4;
+    NSNumber* shadowDX   = [m objectForKey:@"shadowOffsetX"] ?: @0;
+    NSNumber* shadowDY   = [m objectForKey:@"shadowOffsetY"] ?: @1;
+    NSString* shadowCol  = [m objectForKey:@"shadowColor"] ?: @"000000CC";
+
+    [x appendFormat:@"\t<!-- 颜色档：0=自动阈值变色 1=跟随系统 2=荧光绿 3=COD黄 4=霓虹青 5=半透明白 6=性能红 -->\n\t<key>colorIndex</key>\n\t<integer>%d</integer>\n", colorIndex.intValue];
+    [x appendFormat:@"\t<!-- 距右边缘（像素） -->\n\t<key>dragX</key>\n\t<real>%g</real>\n", dragX.doubleValue];
+    [x appendFormat:@"\t<!-- 距顶边缘（像素） -->\n\t<key>dragY</key>\n\t<real>%g</real>\n", dragY.doubleValue];
+    [x appendFormat:@"\t<!-- 显示开关 0=关 1=开 -->\n\t<key>enabled</key>\n\t<integer>%d</integer>\n", enabled.intValue];
+    [x appendFormat:@"\t<!-- 字号 -->\n\t<key>fontSize</key>\n\t<integer>%d</integer>\n", fontSize.intValue];
+    [x appendFormat:@"\t<!-- 粗细 100最细 300细 400常规 600半粗 900最粗 -->\n\t<key>fontWeight</key>\n\t<integer>%d</integer>\n", fontWeight.intValue];
+    [x appendFormat:@"\t<!-- 锁屏隐藏 0=关 1=开 -->\n\t<key>hideOnLock</key>\n\t<integer>%d</integer>\n", hideOnLock.intValue];
+    [x appendFormat:@"\t<!-- 初始距右边缘（拖动后由 dragX 接管） -->\n\t<key>offsetX</key>\n\t<real>%g</real>\n", offsetX.doubleValue];
+    [x appendFormat:@"\t<!-- 初始距顶边缘 -->\n\t<key>offsetY</key>\n\t<real>%g</real>\n", offsetY.doubleValue];
+    [x appendFormat:@"\t<!-- 位置锁定 1=禁止拖动 -->\n\t<key>lockPos</key>\n\t<integer>%d</integer>\n", lockPos.intValue];
+    [x appendFormat:@"\t<!-- 日志 0=关 1=写 /var/mobile/Library/FPSDyn.log -->\n\t<key>log</key>\n\t<integer>%d</integer>\n", log.intValue];
+    [x appendFormat:@"\t<!-- 文字阴影 0=关 1=开 -->\n\t<key>shadow</key>\n\t<integer>%d</integer>\n", shadow.intValue];
+    [x appendFormat:@"\t<!-- 阴影色 RRGGBBAA（默认黑色 80%% 透明） -->\n\t<key>shadowColor</key>\n\t<string>%@</string>\n", shadowCol];
+    [x appendFormat:@"\t<!-- 阴影模糊半径 -->\n\t<key>shadowBlur</key>\n\t<real>%g</real>\n", shadowBlur.doubleValue];
+    [x appendFormat:@"\t<!-- 阴影水平偏移 -->\n\t<key>shadowOffsetX</key>\n\t<real>%g</real>\n", shadowDX.doubleValue];
+    [x appendFormat:@"\t<!-- 阴影垂直偏移 -->\n\t<key>shadowOffsetY</key>\n\t<real>%g</real>\n", shadowDY.doubleValue];
+
+    // 动态变色阈值
     [x appendString:@"\t<!-- 动态变色阈值：键=FPS下界，值=RRGGBBAA；取≤当前FPS的最大档 -->\n\t<key>thresholds</key>\n\t<dict>\n"];
-    NSDictionary* th = v(@"thresholds", nil);
+    NSDictionary* th = [m objectForKey:@"thresholds"];
     if(th){
-        NSArray* keys = [th allKeys];
-        NSArray* sorted = [keys sortedArrayUsingComparator:^NSComparisonResult(NSString* a, NSString* b){
+        NSArray* sorted = [[th allKeys] sortedArrayUsingComparator:^NSComparisonResult(NSString* a, NSString* b){
             return [b.doubleValue compare:@(a.doubleValue)];
         }];
         for(NSString* k in sorted)
