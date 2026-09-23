@@ -269,13 +269,18 @@ static void saveState(void){
         NSMutableDictionary* d = [loadPrefs() mutableCopy] ?: [NSMutableDictionary dictionary];
         [d setObject:[NSNumber numberWithInt:g_manualColor] forKey:@"colorIndex"];
         if(g_window){
-            // 统一换算回竖屏坐标存储（横屏时按比例映射回去），旋转后位置才能跟随
+            // 统一换算回竖屏坐标存储：横屏中心(cx,cy) → 竖屏中心(px,py)
+            // LandscapeLeft(逆时针90°)映射的逆变换: px = W_p - cy, py = cx
             CGPoint c = g_window.center;
             UIDeviceOrientation dev = [[UIDevice currentDevice] orientation];
-            if(dev == UIDeviceOrientationLandscapeLeft || dev == UIDeviceOrientationLandscapeRight){
+            if(dev == UIDeviceOrientationLandscapeLeft){
+                // 逆映射: px = W_p - cy, py = cx
                 CGRect b = [[UIScreen mainScreen] bounds];
-                CGFloat W = b.size.height, H = b.size.width;
-                c = CGPointMake(c.x / W * b.size.width, c.y / H * b.size.height);
+                c = CGPointMake(b.size.width - c.y, c.x);
+            }else if(dev == UIDeviceOrientationLandscapeRight){
+                // 逆映射: px = cy, py = H_p - cx
+                CGRect b = [[UIScreen mainScreen] bounds];
+                c = CGPointMake(c.y, b.size.height - c.x);
             }
             [d setObject:[NSNumber numberWithDouble:c.x] forKey:@"posX"];
             [d setObject:[NSNumber numberWithDouble:c.y] forKey:@"posY"];
@@ -436,11 +441,17 @@ static void saveState(void){
             x = (g_pos.x >= 0) ? g_pos.x - w/2 : g_cfg.offsetX;
             y = (g_pos.y >= 0) ? g_pos.y - h/2 : g_cfg.offsetY;
         }else{
-            // 横屏：竖屏坐标按屏幕比例映射（右上角↔右上角）
-            CGFloat fx = (g_pos.x >= 0) ? g_pos.x / b.size.width  : 0.5;
-            CGFloat fy = (g_pos.y >= 0) ? g_pos.y / b.size.height : 0.5;
-            x = fx * W - w/2;
-            y = fy * H - h/2;
+            // 横屏：竖屏坐标做精确旋转映射（物理旋转，不是比例缩放）
+            CGFloat cx, cy;
+            if(o == UIInterfaceOrientationLandscapeLeft){
+                // 设备逆时针转90°: lx = py, ly = W_p - px
+                cx = g_pos.y; cy = b.size.width - g_pos.x;
+            }else{
+                // 设备顺时针转90°: lx = H_p - py, ly = px
+                cx = b.size.height - g_pos.y; cy = g_pos.x;
+            }
+            x = cx - w/2;
+            y = cy - h/2;
         }
     }else{
         const char* p = g_cfg.position;
