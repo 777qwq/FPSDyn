@@ -12,16 +12,11 @@ jobs:
 
       - name: Setup Theos
         run: |
-          git clone --depth 1 --recursive --shallow-submodules https://github.com/theos/theos.git $HOME/theos
-          curl -sL https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64 -o ldid
-          chmod +x ldid && sudo mv ldid /usr/local/bin/ldid
-          git clone --depth 1 https://github.com/theos/sdks.git $HOME/sdks
-          mkdir -p $HOME/theos/sdks
-          ln -s $HOME/sdks/iPhoneOS16.5.sdk $HOME/theos/sdks/iPhoneOS16.5.sdk
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
       - name: Build package
         run: |
-          export THEOS=$HOME/theos
           make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
 
       - name: Upload deb
