@@ -27,6 +27,7 @@ static CGFloat  g_offX      = 20;   // 距右边缘
 static CGFloat  g_offY      = 60;   // 距顶边缘
 static int      g_colorIdx  = 0;    // 0=AUTO 1=跟随系统 2-6=色盘
 static int      g_hideOnLock= 1;    // 1=锁屏隐藏
+static int      g_lockPos   = 0;    // 1=锁定位置（禁止拖动）
 static int      g_log       = 0;    // 日志开关
 static int      g_thCount   = 0;
 static CGFloat  g_thBound[16];
@@ -100,6 +101,7 @@ static void ensureDefaultConfig(void){
     put(@"offsetX", @20);
     put(@"offsetY", @60);
     put(@"hideOnLock", @1);
+    put(@"lockPos", @0);
     put(@"log", @0);
     put(@"thresholds", @{@"50": @"30D158FF", @"40": @"FF9F0AFF", @"0": @"FF453AFF"});
     [m writeToFile:@PREF_PATH atomically:YES];
@@ -112,6 +114,7 @@ static void loadConfig(void){
     g_fontSize   = pFloat(d, @"fontSize", 16);
     g_fontWeight = pFloat(d, @"fontWeight", 600);
     g_hideOnLock = (int)pFloat(d, @"hideOnLock", 1);
+    g_lockPos    = (int)pFloat(d, @"lockPos", 0);
     g_log        = (int)pFloat(d, @"log", 0);
     g_colorIdx   = (int)pFloat(d, @"colorIndex", 0);
     if(g_colorIdx < 0) g_colorIdx = 0;
@@ -139,6 +142,14 @@ static void loadConfig(void){
         g_thBound[1]=40; g_thColor[1][0]=0xFF;g_thColor[1][1]=0x9F;g_thColor[1][2]=0x0A;g_thColor[1][3]=255;
         g_thBound[2]=0;  g_thColor[2][0]=0xFF;g_thColor[2][1]=0x45;g_thColor[2][2]=0x3A;g_thColor[2][3]=255;
     }
+    // 关键：阈值降序排序（字典遍历顺序随机，不排序 AUTO 会失效）
+    for(int a=0; a<g_thCount-1; a++)
+        for(int b=a+1; b<g_thCount; b++)
+            if(g_thBound[b] > g_thBound[a]){
+                CGFloat tb = g_thBound[a]; g_thBound[a] = g_thBound[b]; g_thBound[b] = tb;
+                unsigned char tc[4];
+                memcpy(tc, g_thColor[a], 4); memcpy(g_thColor[a], g_thColor[b], 4); memcpy(g_thColor[b], tc, 4);
+            }
     g_lastColorIdx = -1;
 }
 
@@ -260,6 +271,7 @@ static void saveState(void){
 }
 
 - (void)onPan:(UIPanGestureRecognizer*)g {
+    if(g_lockPos) return; // 位置锁定：忽略拖动
     if(!g_window || !g_topC || !g_trailC) return;
     @try {
         NSInteger st = [g state];
