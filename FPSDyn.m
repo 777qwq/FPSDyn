@@ -140,7 +140,8 @@ static void writeConfigXML(NSDictionary* m){
     NSDictionary* th = [m objectForKey:@"thresholds"];
     if(th){
         NSArray* sorted = [[th allKeys] sortedArrayUsingComparator:^NSComparisonResult(NSString* a, NSString* b){
-            return @(b.doubleValue) > @(a.doubleValue) ? NSOrderedDescending : NSOrderedAscending;
+            double da = a.doubleValue, db = b.doubleValue;
+            return da > db ? NSOrderedDescending : (da < db ? NSOrderedAscending : NSOrderedSame);
         }];
         for(NSString* k in sorted)
             [x appendFormat:@"\t\t<key>%@</key>\n\t\t<string>%@</string>\n", k, [th objectForKey:k]];
