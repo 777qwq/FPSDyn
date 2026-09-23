@@ -25,7 +25,9 @@ static CGFloat  g_fontSize  = 16;
 static CGFloat  g_fontWeight= 600;
 static CGFloat  g_offX      = 20;   // 距右边缘
 static CGFloat  g_offY      = 60;   // 距顶边缘
-static int      g_colorIdx  = 0;    // 0=AUTO 1-5=色盘
+static int      g_colorIdx  = 0;    // 0=AUTO 1=跟随系统 2-6=色盘
+static int      g_hideOnLock= 1;    // 1=锁屏隐藏
+static int      g_log       = 0;    // 日志开关
 static int      g_thCount   = 0;
 static CGFloat  g_thBound[16];
 static unsigned char g_thColor[16][4];
@@ -47,7 +49,7 @@ static const unsigned char kPalette[5][4] = {
     {255,255,255,140},  // 4 半透明白 #FFFFFF8C
     {255,69,58,255},    // 5 性能红 #FF453A
 };
-static const char* kColorNames[6] = {"AUTO","荧光绿","COD黄","霓虹青","半透明白","性能红"};
+static const char* kColorNames[7] = {"AUTO","跟随系统","荧光绿","COD黄","霓虹青","半透明白","性能红"};
 
 // ---------- 工具 ----------
 static int hexNib(int c){
@@ -66,6 +68,7 @@ static UIColor* RGBAHex(NSString* s){
     return [UIColor colorWithRed:r/255.0 green:g/255.0 blue:b/255.0 alpha:a/255.0];
 }
 static void dlog(NSString* fmt, ...){
+    if(!g_log) return; // 日志开关：plist 里 log=1 开启
     va_list ap; va_start(ap, fmt);
     NSString* s = [[NSString alloc] initWithFormat:fmt arguments:ap];
     va_end(ap);
@@ -96,6 +99,8 @@ static void ensureDefaultConfig(void){
     put(@"fontWeight", @600);
     put(@"offsetX", @20);
     put(@"offsetY", @60);
+    put(@"hideOnLock", @1);
+    put(@"log", @0);
     put(@"thresholds", @{@"50": @"30D158FF", @"40": @"FF9F0AFF", @"0": @"FF453AFF"});
     [m writeToFile:@PREF_PATH atomically:YES];
     dlog(@"default config written");
@@ -106,9 +111,11 @@ static void loadConfig(void){
     g_enabled    = pBool(d, @"enabled", 1);
     g_fontSize   = pFloat(d, @"fontSize", 16);
     g_fontWeight = pFloat(d, @"fontWeight", 600);
+    g_hideOnLock = (int)pFloat(d, @"hideOnLock", 1);
+    g_log        = (int)pFloat(d, @"log", 0);
     g_colorIdx   = (int)pFloat(d, @"colorIndex", 0);
     if(g_colorIdx < 0) g_colorIdx = 0;
-    if(g_colorIdx > 5) g_colorIdx = 5;
+    if(g_colorIdx > 6) g_colorIdx = 6;
     if([d objectForKey:@"dragX"]) g_offX = pFloat(d, @"dragX", 20);
     if([d objectForKey:@"dragY"]) g_offY = pFloat(d, @"dragY", 60);
     g_thCount = 0;
@@ -161,6 +168,20 @@ static void loadConfig(void){
     } completion:nil];
 }
 @end
+
+// 锁屏检测（v3.x 验证可用：SBLockScreenManager.isUILocked）
+static BOOL fpsdyn_isLocked(void){
+    @try {
+        Class cls = objc_getClass("SBLockScreenManager");
+        if(!cls) return NO;
+        id inst = ((id(*)(id,SEL))objc_msgSend)(cls, @selector(sharedInstance));
+        if(inst && [inst respondsToSelector:@selector(isUILocked)])
+            return ((BOOL(*)(id,SEL))objc_msgSend)(inst, @selector(isUILocked));
+    } @catch (NSException* e) {
+        dlog(@"EXC lock: %@", e);
+    }
+    return NO;
+}
 
 // ---------- Manager ----------
 @interface FPSDynManager : NSObject
@@ -264,7 +285,7 @@ static void saveState(void){
 - (void)onTap:(UITapGestureRecognizer*)g {
     if([g state] != UIGestureRecognizerStateEnded) return;
     @try {
-        g_colorIdx = (g_colorIdx + 1) % 6;
+        g_colorIdx = (g_colorIdx + 1) % 7;
         g_lastColorIdx = -1;
         saveState();
         dlog(@"color -> %d (%s)", g_colorIdx, kColorNames[g_colorIdx]);
@@ -289,6 +310,12 @@ static void saveState(void){
         if(!CGSizeEqualToSize(g_window.frame.size, sbNow.size))
             g_window.frame = (CGRect){CGPointZero, sbNow.size};
 
+        // 锁屏隐藏
+        if(g_hideOnLock && fpsdyn_isLocked()){
+            if(!g_window.hidden) g_window.hidden = YES;
+            return;
+        }
+
         // 每 5 tick 热更新配置
         if((tickCount % 5) == 0) loadConfig();
 
@@ -303,11 +330,15 @@ static void saveState(void){
         g_label.text = [NSString stringWithFormat:@"%.0f FPS", fps];
         [g_label sizeToFit];
 
-        // 颜色：AUTO=阈值变色，1-5=固定色盘
-        if(g_colorIdx > 0){
+        // 颜色：AUTO=阈值变色，1=跟随系统(深色白/浅色黑)，2-6=固定色盘
+        if(g_colorIdx == 1){
+            UIUserInterfaceStyle style = [UIScreen mainScreen].traitCollection.userInterfaceStyle;
+            g_label.textColor = (style == UIUserInterfaceStyleDark) ? [UIColor whiteColor]
+                                                                   : [UIColor blackColor];
+        }else if(g_colorIdx > 1){
             if(g_colorIdx != g_lastColorIdx){
                 g_lastColorIdx = g_colorIdx;
-                const unsigned char* c = kPalette[g_colorIdx-1];
+                const unsigned char* c = kPalette[g_colorIdx-2];
                 g_label.textColor = [UIColor colorWithRed:c[0]/255.0 green:c[1]/255.0
                                                      blue:c[2]/255.0 alpha:c[3]/255.0];
             }
