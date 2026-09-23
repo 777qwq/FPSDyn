@@ -158,15 +158,6 @@ static void loadConfig(void){
 @implementation FPSDynRootVC
 - (BOOL)shouldAutorotate { return YES; }
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAll; }
-// 转屏动画期间把窗口精确钉到新尺寸，消除四角黑边
-- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
-    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
-    [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> ctx) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if(g_window) g_window.frame = (CGRect){CGPointZero, size};
-        });
-    } completion:nil];
-}
 @end
 
 // 锁屏检测（v3.x 验证可用：SBLockScreenManager.isUILocked）
@@ -305,15 +296,25 @@ static void saveState(void){
         [self buildIfNeeded];
         if(g_window.hidden) g_window.hidden = NO;
 
-        // 兜底：窗口尺寸与屏幕不一致时立即对齐（消除转屏残留黑边）
-        CGRect sbNow = [[UIScreen mainScreen] bounds];
-        if(!CGSizeEqualToSize(g_window.frame.size, sbNow.size))
-            g_window.frame = (CGRect){CGPointZero, sbNow.size};
-
         // 锁屏隐藏
         if(g_hideOnLock && fpsdyn_isLocked()){
             if(!g_window.hidden) g_window.hidden = YES;
             return;
+        }
+
+        // 转屏诊断（log=1 时可见）
+        {
+            static CGSize lastB = {0, 0};
+            CGSize cb = g_window.bounds.size;
+            CGRect sbNow = [[UIScreen mainScreen] bounds];
+            CGAffineTransform t = g_window.transform;
+            if(!CGSizeEqualToSize(cb, lastB) || !CGAffineTransformIsIdentity(t)){
+                dlog(@"rot: screen=%.0fx%.0f winB=%.0fx%.0f t=(%.2f,%.2f,%.2f,%.2f)",
+                     (double)sbNow.size.width, (double)sbNow.size.height,
+                     (double)cb.width, (double)cb.height,
+                     (double)t.a, (double)t.b, (double)t.c, (double)t.d);
+                lastB = cb;
+            }
         }
 
         // 每 5 tick 热更新配置
