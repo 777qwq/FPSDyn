@@ -102,22 +102,22 @@ static void writeConfigXML(NSDictionary* m){
      "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
      "<plist version=\"1.0\">\n<dict>\n"];
     [x appendFormat:@"\t<!-- 颜色档：0=自动阈值变色 1=跟随系统 2=荧光绿 3=COD黄 4=霓虹青 5=半透明白 6=性能红 -->\n"
-     "\t<key>colorIndex</key>\n\t<integer>%d</integer>\n", [v(@"colorIndex", @0) intValue]];
-    [x appendFormat:@"\t<!-- 距右边缘（像素） -->\n\t<key>dragX</key>\n\t<real>%g</real>\n", v(@"dragX", @20).doubleValue];
-    [x appendFormat:@"\t<!-- 距顶边缘（像素） -->\n\t<key>dragY</key>\n\t<real>%g</real>\n", v(@"dragY", @60).doubleValue];
-    [x appendFormat:@"\t<!-- 显示开关 0=关 1=开 -->\n\t<key>enabled</key>\n\t<integer>%d</integer>\n", [v(@"enabled", @1) intValue]];
-    [x appendFormat:@"\t<!-- 字号 -->\n\t<key>fontSize</key>\n\t<integer>%d</integer>\n", [v(@"fontSize", @16) intValue]];
-    [x appendFormat:@"\t<!-- 粗细 100最细 300细 400常规 600半粗 900最粗 -->\n\t<key>fontWeight</key>\n\t<integer>%d</integer>\n", [v(@"fontWeight", @600) intValue]];
-    [x appendFormat:@"\t<!-- 锁屏隐藏 0=关 1=开 -->\n\t<key>hideOnLock</key>\n\t<integer>%d</integer>\n", [v(@"hideOnLock", @1) intValue]];
-    [x appendFormat:@"\t<!-- 初始距右边缘（拖动后由 dragX 接管） -->\n\t<key>offsetX</key>\n\t<real>%g</real>\n", v(@"offsetX", @20).doubleValue];
-    [x appendFormat:@"\t<!-- 初始距顶边缘 -->\n\t<key>offsetY</key>\n\t<real>%g</real>\n", v(@"offsetY", @60).doubleValue];
-    [x appendFormat:@"\t<!-- 位置锁定 1=禁止拖动 -->\n\t<key>lockPos</key>\n\t<integer>%d</integer>\n", [v(@"lockPos", @0) intValue]];
-    [x appendFormat:@"\t<!-- 日志 0=关 1=写 /var/mobile/Library/FPSDyn.log -->\n\t<key>log</key>\n\t<integer>%d</integer>\n", [v(@"log", @0) intValue]];
-    [x appendFormat:@"\t<!-- 文字阴影 0=关 1=开 -->\n\t<key>shadow</key>\n\t<integer>%d</integer>\n", [v(@"shadow", @0) intValue]];
+     "\t<key>colorIndex</key>\n\t<integer>%d</integer>\n", [[(NSNumber*)v(@"colorIndex", @0) intValue]]];
+    [x appendFormat:@"\t<!-- 距右边缘（像素） -->\n\t<key>dragX</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"dragX", @20) doubleValue]];
+    [x appendFormat:@"\t<!-- 距顶边缘（像素） -->\n\t<key>dragY</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"dragY", @60) doubleValue]];
+    [x appendFormat:@"\t<!-- 显示开关 0=关 1=开 -->\n\t<key>enabled</key>\n\t<integer>%d</integer>\n", [[(NSNumber*)v(@"enabled", @1) intValue]]];
+    [x appendFormat:@"\t<!-- 字号 -->\n\t<key>fontSize</key>\n\t<integer>%d</integer>\n", [[(NSNumber*)v(@"fontSize", @16) intValue]]];
+    [x appendFormat:@"\t<!-- 粗细 100最细 300细 400常规 600半粗 900最粗 -->\n\t<key>fontWeight</key>\n\t<integer>%d</integer>\n", [[(NSNumber*)v(@"fontWeight", @600) intValue]]];
+    [x appendFormat:@"\t<!-- 锁屏隐藏 0=关 1=开 -->\n\t<key>hideOnLock</key>\n\t<integer>%d</integer>\n", [[(NSNumber*)v(@"hideOnLock", @1) intValue]]];
+    [x appendFormat:@"\t<!-- 初始距右边缘（拖动后由 dragX 接管） -->\n\t<key>offsetX</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"offsetX", @20) doubleValue]];
+    [x appendFormat:@"\t<!-- 初始距顶边缘 -->\n\t<key>offsetY</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"offsetY", @60) doubleValue]];
+    [x appendFormat:@"\t<!-- 位置锁定 1=禁止拖动 -->\n\t<key>lockPos</key>\n\t<integer>%d</integer>\n", [[(NSNumber*)v(@"lockPos", @0) intValue]]];
+    [x appendFormat:@"\t<!-- 日志 0=关 1=写 /var/mobile/Library/FPSDyn.log -->\n\t<key>log</key>\n\t<integer>%d</integer>\n", [[(NSNumber*)v(@"log", @0) intValue]]];
+    [x appendFormat:@"\t<!-- 文字阴影 0=关 1=开 -->\n\t<key>shadow</key>\n\t<integer>%d</integer>\n", [[(NSNumber*)v(@"shadow", @0) intValue]]];
     [x appendFormat:@"\t<!-- 阴影色 RRGGBBAA（默认黑色 80% 透明） -->\n\t<key>shadowColor</key>\n\t<string>%@</string>\n", v(@"shadowColor", @"000000CC")];
-    [x appendFormat:@"\t<!-- 阴影模糊半径 -->\n\t<key>shadowBlur</key>\n\t<real>%g</real>\n", v(@"shadowBlur", @4).doubleValue];
-    [x appendFormat:@"\t<!-- 阴影水平偏移 -->\n\t<key>shadowOffsetX</key>\n\t<real>%g</real>\n", v(@"shadowOffsetX", @0).doubleValue];
-    [x appendFormat:@"\t<!-- 阴影垂直偏移 -->\n\t<key>shadowOffsetY</key>\n\t<real>%g</real>\n", v(@"shadowOffsetY", @1).doubleValue];
+    [x appendFormat:@"\t<!-- 阴影模糊半径 -->\n\t<key>shadowBlur</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"shadowBlur", @4) doubleValue]];
+    [x appendFormat:@"\t<!-- 阴影水平偏移 -->\n\t<key>shadowOffsetX</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"shadowOffsetX", @0) doubleValue]];
+    [x appendFormat:@"\t<!-- 阴影垂直偏移 -->\n\t<key>shadowOffsetY</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"shadowOffsetY", @1) doubleValue]];
     // 阈值变色
     [x appendString:@"\t<!-- 动态变色阈值：键=FPS下界，值=RRGGBBAA；取≤当前FPS的最大档 -->\n\t<key>thresholds</key>\n\t<dict>\n"];
     NSDictionary* th = v(@"thresholds", nil);
