@@ -44,6 +44,17 @@ static UILabel* g_label = nil;
 static NSTimer* g_timer = nil;
 static unsigned int g_lastFrames = 0;
 static int g_lastColorIdx = -1;
+static int g_manualColor = 0;          // 0=AUTO(阈值变色) 1-5=固定色盘
+static CGPoint g_pos = {-1, -1};       // 拖动后的绝对位置（-1 = 用 position/offset）
+
+// ---------- 五色盘（用户指定） ----------
+static const unsigned char kPalette[5][4] = {
+    {51,255,102,242},   // 1 荧光绿 #33FF66
+    {255,214,10,242},   // 2 COD 黄 #FFD60A
+    {0,229,229,230},    // 3 霓虹青 #00E5E5
+    {255,255,255,140},  // 4 半透明白 #FFFFFF8C
+    {255,69,58,255},    // 5 性能红 #FF453A
+};
 
 // ---------- hex "RRGGBBAA" ----------
 static int hexNib(int c){
@@ -101,6 +112,12 @@ static void loadConfig(void){
     g_cfg.updateInterval = pFloat(d, @"updateInterval", 1.0);
     if(g_cfg.updateInterval < 0.1) g_cfg.updateInterval = 0.1;
 
+    g_manualColor = (int)pFloat(d, @"colorIndex", 0);
+    if(g_manualColor < 0) g_manualColor = 0;
+    if(g_manualColor > 5) g_manualColor = 5;
+    g_pos.x = pFloat(d, @"posX", -1);
+    g_pos.y = pFloat(d, @"posY", -1);
+
     // thresholds: { "50": "30D158FF", "40": "FF9F0AFF", "0": "FF453AFF" }
     g_cfg.thCount = 0;
     NSDictionary* th = [d objectForKey:@"thresholds"];
@@ -150,11 +167,9 @@ static void dlog(NSString* fmt, ...){
     if(f){ fprintf(f, "[FPSDyn] %s\n", [s UTF8String]); fclose(f); }
 }
 
-// ---------- 覆盖窗（不拦截触摸） ----------
+// ---------- 覆盖窗（仅 HUD 区域接收手势） ----------
 @interface FPSDynWindow : UIWindow @end
 @implementation FPSDynWindow
-- (UIView*)hitTest:(CGPoint)p withEvent:(UIEvent*)e { return nil; }
-- (BOOL)pointInside:(CGPoint)p withEvent:(UIEvent*)e { return NO; }
 @end
 
 // ---------- Manager ----------
@@ -164,7 +179,23 @@ static void dlog(NSString* fmt, ...){
 - (void)applyStyle;
 - (void)layout;
 - (void)buildIfNeeded;
+- (void)onPan:(UIPanGestureRecognizer*)g;
+- (void)onTap:(UITapGestureRecognizer*)g;
 @end
+
+static void saveState(void){
+    @try {
+        NSMutableDictionary* d = [loadPrefs() mutableCopy] ?: [NSMutableDictionary dictionary];
+        [d setObject:[NSNumber numberWithInt:g_manualColor] forKey:@"colorIndex"];
+        if(g_window){
+            [d setObject:[NSNumber numberWithDouble:g_window.frame.origin.x] forKey:@"posX"];
+            [d setObject:[NSNumber numberWithDouble:g_window.frame.origin.y] forKey:@"posY"];
+        }
+        [d writeToFile:@PREF_PATH atomically:YES];
+    } @catch (NSException* e) {
+        dlog(@"EXC in saveState: %@", e);
+    }
+}
 
 @implementation FPSDynManager
 
@@ -194,13 +225,60 @@ static void dlog(NSString* fmt, ...){
     [g_window setWindowLevel:2000.0];
     g_window.backgroundColor = [UIColor clearColor];
     g_window.hidden = NO;
-    g_window.userInteractionEnabled = NO;
+    g_window.userInteractionEnabled = YES;
 
     g_label = [[UILabel alloc] initWithFrame:CGRectMake(0,0,120,40)];
-    g_label.userInteractionEnabled = NO;
+    g_label.userInteractionEnabled = YES;
+    UIPanGestureRecognizer* pan = [[UIPanGestureRecognizer alloc]
+        initWithTarget:self action:@selector(onPan:)];
+    [g_label addGestureRecognizer:pan];
+    [pan release];
+    UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
+        initWithTarget:self action:@selector(onTap:)];
+    [g_label addGestureRecognizer:tap];
+    [tap release];
     [g_window addSubview:g_label];
     [self applyStyle];
-    dlog(@"window built, label added");
+    dlog(@"window built, label added, gestures attached");
+}
+
+- (void)onPan:(UIPanGestureRecognizer*)g {
+    if(!g_window) return;
+    @try {
+        NSInteger st = [g state];
+        if(st == UIGestureRecognizerStateBegan || st == UIGestureRecognizerStateChanged){
+            CGPoint tr = [g translationInView:g_window];
+            CGRect f = g_window.frame;
+            f.origin.x += tr.x;
+            f.origin.y += tr.y;
+            CGRect b = [[UIScreen mainScreen] bounds];
+            if(f.origin.x < 0) f.origin.x = 0;
+            if(f.origin.y < 0) f.origin.y = 0;
+            if(f.origin.x + f.size.width > b.size.width)  f.origin.x = b.size.width - f.size.width;
+            if(f.origin.y + f.size.height > b.size.height) f.origin.y = b.size.height - f.size.height;
+            g_window.frame = f;
+            [g setTranslation:CGPointZero inView:g_window];
+        }else if(st == UIGestureRecognizerStateEnded){
+            g_pos = g_window.frame.origin;
+            saveState();
+            dlog(@"pos saved: %.0f,%.0f", (double)g_pos.x, (double)g_pos.y);
+        }
+    } @catch (NSException* e) {
+        dlog(@"EXC in pan: %@", e);
+    }
+}
+
+- (void)onTap:(UITapGestureRecognizer*)g {
+    if([g state] != UIGestureRecognizerStateEnded) return;
+    @try {
+        g_manualColor = (g_manualColor + 1) % 6;   // 0=AUTO 1-5=色盘
+        g_lastColorIdx = -1;                       // 强制重设颜色
+        saveState();
+        const char* names[6] = {"AUTO","荧光绿","COD黄","霓虹青","半透明白","性能红"};
+        dlog(@"color -> %d (%s)", g_manualColor, names[g_manualColor]);
+    } @catch (NSException* e) {
+        dlog(@"EXC in tap: %@", e);
+    }
 }
 
 - (void)applyStyle {
@@ -233,14 +311,20 @@ static void dlog(NSString* fmt, ...){
     CGSize ts = [g_label sizeThatFits:CGSizeMake(bounds.size.width, 300)];
     CGFloat w = ts.width + g_cfg.padH*2, h = ts.height + g_cfg.padV*2;
     CGFloat x = 0, y = 0;
-    const char* p = g_cfg.position;
-    if(p[0]=='t')      y = g_cfg.offsetY;
-    else if(p[0]=='b') y = bounds.size.height - h - g_cfg.offsetY;
-    else               y = bounds.size.height/2 - h/2;
-    if(p[0]=='t'||p[0]=='b'){
-        if(p[4]=='l')      x = g_cfg.offsetX;
-        else if(p[4]=='r') x = bounds.size.width - w - g_cfg.offsetX;
-        else               x = bounds.size.width/2 - w/2;
+    if(g_pos.x >= 0 || g_pos.y >= 0){
+        // 拖动过的绝对位置优先
+        x = (g_pos.x >= 0) ? g_pos.x : g_cfg.offsetX;
+        y = (g_pos.y >= 0) ? g_pos.y : g_cfg.offsetY;
+    }else{
+        const char* p = g_cfg.position;
+        if(p[0]=='t')      y = g_cfg.offsetY;
+        else if(p[0]=='b') y = bounds.size.height - h - g_cfg.offsetY;
+        else               y = bounds.size.height/2 - h/2;
+        if(p[0]=='t'||p[0]=='b'){
+            if(p[4]=='l')      x = g_cfg.offsetX;
+            else if(p[4]=='r') x = bounds.size.width - w - g_cfg.offsetX;
+            else               x = bounds.size.width/2 - w/2;
+        }
     }
     g_window.frame = CGRectMake(x, y, w, h);
     g_label.frame  = CGRectMake(g_cfg.padH, g_cfg.padV, ts.width, ts.height);
@@ -272,7 +356,14 @@ static void dlog(NSString* fmt, ...){
     for(int i=0;i<g_cfg.thCount;i++){
         if(fps >= g_cfg.thBound[i]){ ci = i; break; }
     }
-    if(ci != g_lastColorIdx){
+    if(g_manualColor > 0){
+        // 手动色盘：仅当档位变化时重设
+        if(g_manualColor != g_lastColorIdx){
+            g_lastColorIdx = g_manualColor;
+            const unsigned char* c = kPalette[g_manualColor-1];
+            g_label.textColor = RGBAColor(c[0], c[1], c[2], c[3]/255.0);
+        }
+    }else if(ci != g_lastColorIdx){
         g_lastColorIdx = ci;
         unsigned char* c = g_cfg.thColor[ci];
         g_label.textColor = RGBAColor(c[0], c[1], c[2], c[3]/255.0);
