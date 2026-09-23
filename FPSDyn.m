@@ -53,9 +53,7 @@ static int g_manualColor = 0;          // 0=AUTO(阈值变色) 1-5=固定色盘
 static CGPoint g_pos = {-1, -1};       // 拖动后的中心点坐标（-1 = 用 position/offset）
 static id g_probeInst = nil;           // 锁状态探测：实例
 static SEL g_probeSel = NULL;          // 锁状态探测：发现的方法
-static NSLayoutConstraint* g_topC = nil;   // label.top → safeArea.top
-static NSLayoutConstraint* g_trailC = nil; // label.trailing → safeArea.trailing
-static CGFloat g_dragX = -1, g_dragY = -1; // 拖动后的边距（trailing/top inset，-1=未拖动）
+static CGFloat g_dragX = -1, g_dragY = -1; // label 中心（window 内部坐标，永不旋转）
 
 // ---------- 五色盘（用户指定） ----------
 static const unsigned char kPalette[5][4] = {
@@ -315,23 +313,14 @@ static void saveState(void){
     g_window.backgroundColor = [UIColor clearColor];
     g_window.hidden = NO;
     g_window.userInteractionEnabled = YES;
-    // 照原版思路：全屏窗口交给 UIKit 原生旋转，label 用 Auto Layout 钉角
+    // 全屏窗口；转屏靠手动 transform（UIKit 不会帮我们转），内容坐标系恒为竖屏
     g_window.frame = [[UIScreen mainScreen] bounds];
+    g_window.transform = CGAffineTransformIdentity;
 
-    g_label = [[UILabel alloc] initWithFrame:CGRectZero];
-    g_label.translatesAutoresizingMaskIntoConstraints = NO;
+    g_label = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, 100, 30)];
     g_label.userInteractionEnabled = YES;
+    [g_label sizeToFit];
     [g_window addSubview:g_label];
-
-    // 约束：label 右上角钉在安全区右上角，常量即边距
-    CGFloat topInset   = (g_dragY >= 0) ? g_dragY : (g_cfg.offsetY + 5);
-    CGFloat trailInset = (g_dragX >= 0) ? g_dragX : (g_cfg.offsetX + 10);
-    g_topC   = [g_label.topAnchor constraintEqualToAnchor:g_window.safeAreaLayoutGuide.topAnchor
-                                                constant:topInset];
-    g_trailC = [g_label.trailingAnchor constraintEqualToAnchor:g_window.safeAreaLayoutGuide.trailingAnchor
-                                                     constant:-trailInset];
-    g_topC.active = YES;
-    g_trailC.active = YES;
 
     UIPanGestureRecognizer* pan = [[UIPanGestureRecognizer alloc]
         initWithTarget:self action:@selector(onPan:)];
@@ -340,30 +329,38 @@ static void saveState(void){
         initWithTarget:self action:@selector(onTap:)];
     [g_label addGestureRecognizer:tap];
     [self applyStyle];
-    dlog(@"window built (Auto Layout), insets %.0f/%.0f", (double)trailInset, (double)topInset);
+    dlog(@"window built (manual transform mode)");
+}
+
+// 当前转屏角度（依据硬件方向；v3.2.7 实测 Left=+90/Right=-90 为正确可读方向）
+static CGFloat currentAngle(void){
+    UIDeviceOrientation dev = [[UIDevice currentDevice] orientation];
+    if(dev == UIDeviceOrientationLandscapeLeft)  return  (CGFloat)M_PI_2;
+    if(dev == UIDeviceOrientationLandscapeRight) return -(CGFloat)M_PI_2;
+    return 0;
 }
 
 - (void)onPan:(UIPanGestureRecognizer*)g {
-    if(!g_window || !g_topC || !g_trailC) return;
+    if(!g_window || !g_label) return;
     @try {
         NSInteger st = [g state];
         if(st == UIGestureRecognizerStateBegan || st == UIGestureRecognizerStateChanged){
             CGPoint tr = [g translationInView:g_window];
-            CGRect b = [[UIScreen mainScreen] bounds];
+            CGRect wb = g_window.bounds; // 内容坐标系恒定，与转屏无关
             CGFloat lw = g_label.bounds.size.width, lh = g_label.bounds.size.height;
-            // 统一用"正数边距"语义，再写入约束常量（trailing 约束常量 = -inset）
-            g_dragX -= tr.x;   // 往右拖 → 右边距减小
-            g_dragY += tr.y;   // 往下拖 → 上边距增大
-            if(g_dragX < 8) g_dragX = 8;
-            if(g_dragX > b.size.width - lw - 8)  g_dragX = b.size.width - lw - 8;
-            if(g_dragY < 8) g_dragY = 8;
-            if(g_dragY > b.size.height - lh - 8) g_dragY = b.size.height - lh - 8;
-            g_trailC.constant = -g_dragX;
-            g_topC.constant   = g_dragY;
+            if(g_dragX < 0) g_dragX = g_label.center.x;
+            if(g_dragY < 0) g_dragY = g_label.center.y;
+            g_dragX += tr.x;
+            g_dragY += tr.y;
+            if(g_dragX < lw/2 + 4)   g_dragX = lw/2 + 4;
+            if(g_dragY < lh/2 + 4)   g_dragY = lh/2 + 4;
+            if(g_dragX > wb.size.width  - lw/2 - 4) g_dragX = wb.size.width  - lw/2 - 4;
+            if(g_dragY > wb.size.height - lh/2 - 4) g_dragY = wb.size.height - lh/2 - 4;
+            g_label.center = CGPointMake(g_dragX, g_dragY);
             [g setTranslation:CGPointZero inView:g_window];
         }else if(st == UIGestureRecognizerStateEnded){
             saveState();
-            dlog(@"insets saved: %.0f,%.0f", (double)g_dragX, (double)g_dragY);
+            dlog(@"center saved: %.0f,%.0f", (double)g_dragX, (double)g_dragY);
         }
     } @catch (NSException* e) {
         dlog(@"EXC in pan: %@", e);
@@ -489,10 +486,13 @@ static void saveState(void){
         CGSize cb = g_window.bounds.size;
         NSInteger dv = (NSInteger)[[UIDevice currentDevice] orientation];
         if(!CGSizeEqualToSize(cb, lastB) || dv != lastDev){
-            dlog(@"rot diag: dev=%ld winBounds=%.0fx%.0f safeTop=%.0f",
-                 (long)dv, (double)cb.width, (double)cb.height,
-                 (double)g_window.safeAreaInsets.top);
+            dlog(@"rot diag: dev=%ld winBounds=%.0fx%.0f",
+                 (long)dv, (double)cb.width, (double)cb.height);
             lastB = cb; lastDev = dv;
+            // 手动转窗口：内容坐标系不变，仅视觉旋转
+            CGFloat want = currentAngle();
+            if(!CGAffineTransformEqualToTransform(g_window.transform, CGAffineTransformMakeRotation(want)))
+                g_window.transform = CGAffineTransformMakeRotation(want);
         }
     }
     CGFloat maxFPS = [[UIScreen mainScreen] maximumFramesPerSecond];
@@ -502,6 +502,36 @@ static void saveState(void){
 
     g_label.text = [NSString stringWithFormat:@"%.0f FPS", fps];
     if(tickCount < 4) dlog(@"tick #%d: raw=%u diff=%u fps=%.0f", tickCount, now, diff, (double)fps);
+
+    // 初始定位（未拖过时）：按 position/offset 算物理位置，再逆旋转映射到 window 内部坐标
+    if(g_dragX < 0 || g_dragY < 0){
+        CGFloat angle = currentAngle();
+        CGRect b = [[UIScreen mainScreen] bounds];
+        CGFloat Ws = (angle != 0) ? b.size.height : b.size.width;
+        CGFloat Hs = (angle != 0) ? b.size.width  : b.size.height;
+        const char* p = g_cfg.position;
+        CGFloat px, py;
+        if(p[0]=='t')      py = g_cfg.offsetY + 20;
+        else if(p[0]=='b') py = Hs - g_cfg.offsetY - 20;
+        else               py = Hs/2;
+        if(p[0]=='t'||p[0]=='b'){
+            if(p[4]=='l')      px = g_cfg.offsetX + 30;
+            else if(p[4]=='r') px = Ws - g_cfg.offsetX - 30;
+            else               px = Ws/2;
+        }else px = Ws/2;
+        CGPoint d  = CGPointMake(px - Ws/2, py - Hs/2);
+        CGPoint du = CGPointApplyAffineTransform(d, CGAffineTransformMakeRotation(-angle));
+        g_dragX = b.size.width/2  + du.x;
+        g_dragY = b.size.height/2 + du.y;
+        CGFloat lw = g_label.bounds.size.width, lh = g_label.bounds.size.height;
+        if(g_dragX < lw/2+4) g_dragX = lw/2+4;
+        if(g_dragY < lh/2+4) g_dragY = lh/2+4;
+        if(g_dragX > b.size.width-lw/2-4)   g_dragX = b.size.width-lw/2-4;
+        if(g_dragY > b.size.height-lh/2-4)  g_dragY = b.size.height-lh/2-4;
+        dlog(@"initial center: %.0f,%.0f (angle %.1f)", (double)g_dragX, (double)g_dragY, (double)angle);
+    }
+    [g_label sizeToFit];
+    g_label.center = CGPointMake(g_dragX, g_dragY);
     int ci = g_cfg.thCount - 1;
     for(int i=0;i<g_cfg.thCount;i++){
         if(fps >= g_cfg.thBound[i]){ ci = i; break; }
