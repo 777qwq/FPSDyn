@@ -158,6 +158,18 @@ static void loadConfig(void){
 @implementation FPSDynRootVC
 - (BOOL)shouldAutorotate { return YES; }
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAll; }
+// 转屏瞬间隐藏 HUD、动画结束立即恢复——避开旋转中间态的四角露底
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> ctx) {
+        if(g_window) g_window.hidden = YES;
+    } completion:^(id<UIViewControllerTransitionCoordinatorContext> ctx) {
+        if(g_window){
+            g_window.frame = (CGRect){CGPointZero, size};
+            g_window.hidden = NO;
+        }
+    }];
+}
 @end
 
 // 锁屏检测（v3.x 验证可用：SBLockScreenManager.isUILocked）
