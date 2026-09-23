@@ -359,12 +359,12 @@ static void saveState(void){
         g_label.text = [NSString stringWithFormat:@"%.0f FPS", fps];
         [g_label sizeToFit];
 
-        // 颜色：AUTO=阈值变色，1=跟随状态栏(白字/黑字)，2-6=固定色盘
+        // 颜色：AUTO=阈值变色，1=跟随状态栏(反色适应)，2-6=固定色盘
         if(g_colorIdx == 1){
-            // 跟随状态栏样式：LightContent(白图标)→白字，Default/DarkContent→黑字
+            // 状态栏白图标→黑字，状态栏深色图标→白字（与状态栏反色）
             NSInteger sbStyle = ((NSInteger(*)(id,SEL))objc_msgSend)(
                 [UIApplication sharedApplication], @selector(statusBarStyle));
-            g_label.textColor = (sbStyle == 1) ? [UIColor whiteColor] : [UIColor blackColor];
+            g_label.textColor = (sbStyle == 1) ? [UIColor blackColor] : [UIColor whiteColor];
         }else if(g_colorIdx > 1){
             if(g_colorIdx != g_lastColorIdx){
                 g_lastColorIdx = g_colorIdx;
