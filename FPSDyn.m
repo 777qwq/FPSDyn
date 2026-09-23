@@ -151,6 +151,15 @@ static void loadConfig(void){
 @implementation FPSDynRootVC
 - (BOOL)shouldAutorotate { return YES; }
 - (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAll; }
+// 转屏动画期间把窗口精确钉到新尺寸，消除四角黑边
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> ctx) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if(g_window) g_window.frame = (CGRect){CGPointZero, size};
+        });
+    } completion:nil];
+}
 @end
 
 // ---------- Manager ----------
@@ -274,6 +283,11 @@ static void saveState(void){
         }
         [self buildIfNeeded];
         if(g_window.hidden) g_window.hidden = NO;
+
+        // 兜底：窗口尺寸与屏幕不一致时立即对齐（消除转屏残留黑边）
+        CGRect sbNow = [[UIScreen mainScreen] bounds];
+        if(!CGSizeEqualToSize(g_window.frame.size, sbNow.size))
+            g_window.frame = (CGRect){CGPointZero, sbNow.size};
 
         // 每 5 tick 热更新配置
         if((tickCount % 5) == 0) loadConfig();
