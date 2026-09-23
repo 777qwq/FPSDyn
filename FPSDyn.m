@@ -11,6 +11,7 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
+#import <QuartzCore/QuartzCore.h>
 #import <stdio.h>
 #import <stdarg.h>
 
@@ -29,6 +30,10 @@ static int      g_colorIdx  = 0;    // 0=AUTO 1=跟随系统 2-6=色盘
 static int      g_hideOnLock= 1;    // 1=锁屏隐藏
 static int      g_lockPos   = 0;    // 1=锁定位置（禁止拖动）
 static int      g_log       = 0;    // 日志开关
+static int      g_shadow    = 0;    // 1=文字阴影开启
+static CGFloat  g_shadowBlur= 4;
+static CGFloat  g_shadowDX  = 0, g_shadowDY = 1;
+static UIColor* g_shadowCol = nil;
 static int      g_thCount   = 0;
 static CGFloat  g_thBound[16];
 static unsigned char g_thColor[16][4];
@@ -103,6 +108,11 @@ static void ensureDefaultConfig(void){
     put(@"hideOnLock", @1);
     put(@"lockPos", @0);
     put(@"log", @0);
+    put(@"shadow", @0);
+    put(@"shadowColor", @"000000CC");
+    put(@"shadowBlur", @4);
+    put(@"shadowOffsetX", @0);
+    put(@"shadowOffsetY", @1);
     put(@"thresholds", @{@"50": @"30D158FF", @"40": @"FF9F0AFF", @"0": @"FF453AFF"});
     [m writeToFile:@PREF_PATH atomically:YES];
     dlog(@"default config written");
@@ -116,6 +126,11 @@ static void loadConfig(void){
     g_hideOnLock = (int)pFloat(d, @"hideOnLock", 1);
     g_lockPos    = (int)pFloat(d, @"lockPos", 0);
     g_log        = (int)pFloat(d, @"log", 0);
+    g_shadow     = (int)pFloat(d, @"shadow", 0);
+    g_shadowBlur = pFloat(d, @"shadowBlur", 4);
+    g_shadowDX   = pFloat(d, @"shadowOffsetX", 0);
+    g_shadowDY   = pFloat(d, @"shadowOffsetY", 1);
+    g_shadowCol  = RGBAHex(pStr(d, @"shadowColor", @"000000CC"));
     g_colorIdx   = (int)pFloat(d, @"colorIndex", 0);
     if(g_colorIdx < 0) g_colorIdx = 0;
     if(g_colorIdx > 6) g_colorIdx = 6;
@@ -215,7 +230,6 @@ static void refreshAdaptiveColor(void){
 - (void)tick:(NSTimer*)t;
 - (void)onPan:(UIPanGestureRecognizer*)g;
 - (void)onTap:(UITapGestureRecognizer*)g;
-- (void)statusBarChanged:(NSNotification*)n;
 @end
 
 static void saveState(void){
@@ -285,19 +299,41 @@ static void saveState(void){
         initWithTarget:self action:@selector(onTap:)];
     [g_label addGestureRecognizer:tap];
     dlog(@"window built, constraints attached");
-    // 状态栏样式变化通知（跟随状态栏档的刷新源）
-    static BOOL g_sbObs = NO;
-    if(!g_sbObs){
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(statusBarChanged:)
-                                                     name:@"UIApplicationDidChangeStatusBarFrameNotification"
-                                                   object:nil];
-        g_sbObs = YES;
+
+    // C 方案：KVO 监听 statusBarManager.statusBarStyle（源头事件，样式被写入瞬间回调）
+    static BOOL g_kvoDone = NO;
+    if(!g_kvoDone && scene && [scene respondsToSelector:@selector(statusBarManager)]){
+        id sbm = [scene statusBarManager];
+        if(sbm){
+            @try {
+                [sbm addObserver:self forKeyPath:@"statusBarStyle" options:0 context:nil];
+                g_kvoDone = YES;
+                dlog(@"KVO attached to statusBarManager.statusBarStyle");
+            } @catch (NSException* e) {
+                dlog(@"KVO attach failed: %@", e);
+            }
+        }
     }
+    [self applyShadow];
 }
 
-- (void)statusBarChanged:(NSNotification*)n {
-    if(g_colorIdx == 1) refreshAdaptiveColor();
+- (void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary*)change context:(void*)context {
+    if([keyPath isEqualToString:@"statusBarStyle"]){
+        if(g_colorIdx == 1) refreshAdaptiveColor();
+        return;
+    }
+    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+}
+
+- (void)applyShadow {
+    if(!g_label) return;
+    CALayer* l = [g_label layer];
+    if(!g_shadow){ l.shadowOpacity = 0; return; }
+    l.shadowColor   = g_shadowCol.CGColor;
+    l.shadowOpacity = 1.0;
+    l.shadowRadius  = (float)g_shadowBlur;
+    l.shadowOffset  = CGSizeMake(g_shadowDX, g_shadowDY);
+    l.masksToBounds = NO;
 }
 
 - (void)onPan:(UIPanGestureRecognizer*)g {
@@ -373,7 +409,7 @@ static void saveState(void){
         }
 
         // 每 5 tick 热更新配置
-        if((tickCount % 5) == 0) loadConfig();
+        if((tickCount % 5) == 0){ loadConfig(); [self applyShadow]; }
 
         unsigned int now = CARenderServerGetDirtyFrameCount(0);
         unsigned int diff = now - g_lastFrames;
