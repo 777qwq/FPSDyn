@@ -53,6 +53,9 @@ static int g_manualColor = 0;          // 0=AUTO(阈值变色) 1-5=固定色盘
 static CGPoint g_pos = {-1, -1};       // 拖动后的中心点坐标（-1 = 用 position/offset）
 static id g_probeInst = nil;           // 锁状态探测：实例
 static SEL g_probeSel = NULL;          // 锁状态探测：发现的方法
+static NSLayoutConstraint* g_topC = nil;   // label.top → safeArea.top
+static NSLayoutConstraint* g_trailC = nil; // label.trailing → safeArea.trailing
+static CGFloat g_dragX = -1, g_dragY = -1; // 拖动后的边距（trailing/top inset，-1=未拖动）
 
 // ---------- 五色盘（用户指定） ----------
 static const unsigned char kPalette[5][4] = {
@@ -204,8 +207,9 @@ static void loadConfig(void){
     g_manualColor = (int)pFloat(d, @"colorIndex", 0);
     if(g_manualColor < 0) g_manualColor = 0;
     if(g_manualColor > 6) g_manualColor = 6;
-    g_pos.x = pFloat(d, @"posX", -1);
-    g_pos.y = pFloat(d, @"posY", -1);
+    g_dragX = pFloat(d, @"dragX", -1);
+    g_dragY = pFloat(d, @"dragY", -1);
+    g_pos.x = -1; g_pos.y = -1; // 旧版 posX/posY 已废弃
 
     // thresholds: { "50": "30D158FF", "40": "FF9F0AFF", "0": "FF453AFF" }
     g_cfg.thCount = 0;
@@ -247,9 +251,15 @@ static UIColor* RGBAColor(unsigned char r, unsigned char g, unsigned char b, CGF
     return [UIColor colorWithRed:r/255.0 green:g/255.0 blue:b/255.0 alpha:a];
 }
 
-// ---------- 覆盖窗（仅 HUD 区域接收手势） ----------
+// ---------- 覆盖窗（全屏透明，只有 label 区域接收手势） ----------
 @interface FPSDynWindow : UIWindow @end
 @implementation FPSDynWindow
+- (UIView*)hitTest:(CGPoint)p withEvent:(UIEvent*)e {
+    if(!g_label) return nil;
+    CGPoint lp = [g_label convertPoint:p fromView:self];
+    if([g_label pointInside:lp withEvent:e]) return g_label;
+    return nil; // 其余区域穿透
+}
 @end
 
 // ---------- Manager ----------
@@ -257,7 +267,6 @@ static UIColor* RGBAColor(unsigned char r, unsigned char g, unsigned char b, CGF
 + (id)sharedInstance;
 - (void)tick:(NSTimer*)t;
 - (void)applyStyle;
-- (void)layout;
 - (void)buildIfNeeded;
 - (void)onPan:(UIPanGestureRecognizer*)g;
 - (void)onTap:(UITapGestureRecognizer*)g;
@@ -267,9 +276,9 @@ static void saveState(void){
     @try {
         NSMutableDictionary* d = [loadPrefs() mutableCopy] ?: [NSMutableDictionary dictionary];
         [d setObject:[NSNumber numberWithInt:g_manualColor] forKey:@"colorIndex"];
-        if(g_window){
-            [d setObject:[NSNumber numberWithDouble:g_window.center.x] forKey:@"posX"];
-            [d setObject:[NSNumber numberWithDouble:g_window.center.y] forKey:@"posY"];
+        if(g_trailC && g_topC){
+            [d setObject:[NSNumber numberWithDouble:g_trailC.constant] forKey:@"dragX"];
+            [d setObject:[NSNumber numberWithDouble:g_topC.constant]   forKey:@"dragY"];
         }
         [d writeToFile:@PREF_PATH atomically:YES];
     } @catch (NSException* e) {
@@ -306,43 +315,53 @@ static void saveState(void){
     g_window.backgroundColor = [UIColor clearColor];
     g_window.hidden = NO;
     g_window.userInteractionEnabled = YES;
+    // 照原版思路：全屏窗口交给 UIKit 原生旋转，label 用 Auto Layout 钉角
+    g_window.frame = [[UIScreen mainScreen] bounds];
 
-    g_label = [[UILabel alloc] initWithFrame:CGRectMake(0,0,120,40)];
+    g_label = [[UILabel alloc] initWithFrame:CGRectZero];
+    g_label.translatesAutoresizingMaskIntoConstraints = NO;
     g_label.userInteractionEnabled = YES;
+    [g_window addSubview:g_label];
+
+    // 约束：label 右上角钉在安全区右上角，常量即边距
+    CGFloat topInset   = (g_dragY >= 0) ? g_dragY : (g_cfg.offsetY + 5);
+    CGFloat trailInset = (g_dragX >= 0) ? g_dragX : (g_cfg.offsetX + 10);
+    g_topC   = [g_label.topAnchor constraintEqualToAnchor:g_window.safeAreaLayoutGuide.topAnchor
+                                                constant:topInset];
+    g_trailC = [g_label.trailingAnchor constraintEqualToAnchor:g_window.safeAreaLayoutGuide.trailingAnchor
+                                                     constant:-trailInset];
+    g_topC.active = YES;
+    g_trailC.active = YES;
+
     UIPanGestureRecognizer* pan = [[UIPanGestureRecognizer alloc]
         initWithTarget:self action:@selector(onPan:)];
     [g_label addGestureRecognizer:pan];
     UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
         initWithTarget:self action:@selector(onTap:)];
     [g_label addGestureRecognizer:tap];
-    [g_window addSubview:g_label];
     [self applyStyle];
-    static BOOL g_obsRegistered = NO;
-    if(!g_obsRegistered){
-        g_obsRegistered = YES;
-    }
-    dlog(@"window built, label added, gestures attached");
+    dlog(@"window built (Auto Layout), insets %.0f/%.0f", (double)trailInset, (double)topInset);
 }
 
 - (void)onPan:(UIPanGestureRecognizer*)g {
-    if(!g_window) return;
+    if(!g_window || !g_topC || !g_trailC) return;
     @try {
         NSInteger st = [g state];
         if(st == UIGestureRecognizerStateBegan || st == UIGestureRecognizerStateChanged){
             CGPoint tr = [g translationInView:g_window];
-            CGPoint c = g_window.center;
-            c.x += tr.x; c.y += tr.y;
+            // 拖动改约束常量：水平拖 → trailing 边距减小/增大；竖直拖 → top 边距
+            g_trailC.constant -= tr.x;
+            g_topC.constant   += tr.y;
             CGRect b = [[UIScreen mainScreen] bounds];
-            CGFloat sw = g_window.bounds.size.width, sh = g_window.bounds.size.height;
-            if(c.x < sw/2) c.x = sw/2;
-            if(c.y < sh/2) c.y = sh/2;
-            if(c.x > b.size.width - sw/2)  c.x = b.size.width - sw/2;
-            if(c.y > b.size.height - sh/2) c.y = b.size.height - sh/2;
-            g_window.center = c;
+            CGFloat lw = g_label.bounds.size.width, lh = g_label.bounds.size.height;
+            if(g_trailC.constant < 8) g_trailC.constant = 8;
+            if(g_trailC.constant > b.size.width - lw - 8)  g_trailC.constant = b.size.width - lw - 8;
+            if(g_topC.constant < 8) g_topC.constant = 8;
+            if(g_topC.constant > b.size.height - lh - 8)   g_topC.constant = b.size.height - lh - 8;
             [g setTranslation:CGPointZero inView:g_window];
         }else if(st == UIGestureRecognizerStateEnded){
             saveState();
-            dlog(@"pos saved: %.0f,%.0f", (double)g_window.center.x, (double)g_window.center.y);
+            dlog(@"insets saved: %.0f,%.0f", (double)g_trailC.constant, (double)g_topC.constant);
         }
     } @catch (NSException* e) {
         dlog(@"EXC in pan: %@", e);
@@ -387,38 +406,6 @@ static void saveState(void){
     wl.cornerRadius = 0;
     // 去除背景：纯文字 HUD，窗体永远透明（忽略配置中的 backgroundColor）
     g_window.backgroundColor = [UIColor clearColor];
-    [self layout];
-}
-
-- (void)layout {
-    if(!g_window || !g_label) return;
-    CGRect b = [[UIScreen mainScreen] bounds];
-    CGSize ts = [g_label sizeThatFits:CGSizeMake(b.size.width, 300)];
-    CGFloat w = ts.width + g_cfg.padH*2, h = ts.height + g_cfg.padV*2;
-
-    // 照搬原版：只用竖屏坐标 setFrame:，不做任何旋转/变换
-    CGFloat x = 0, y = 0;
-    if(g_pos.x >= 0 || g_pos.y >= 0){
-        x = (g_pos.x >= 0) ? g_pos.x - w/2 : g_cfg.offsetX;
-        y = (g_pos.y >= 0) ? g_pos.y - h/2 : g_cfg.offsetY;
-    }else{
-        const char* p = g_cfg.position;
-        if(p[0]=='t')      y = g_cfg.offsetY;
-        else if(p[0]=='b') y = b.size.height - h - g_cfg.offsetY;
-        else               y = b.size.height/2 - h/2;
-        if(p[0]=='t'||p[0]=='b'){
-            if(p[4]=='l')      x = g_cfg.offsetX;
-            else if(p[4]=='r') x = b.size.width - w - g_cfg.offsetX;
-            else               x = b.size.width/2 - w/2;
-        }
-    }
-    if(x < 0) x = 0; if(y < 0) y = 0;
-    if(x + w > b.size.width)  x = b.size.width - w;
-    if(y + h > b.size.height) y = b.size.height - h;
-
-    g_window.transform = CGAffineTransformIdentity;
-    g_window.frame = CGRectMake(x, y, w, h);
-    g_label.frame  = CGRectMake(g_cfg.padH, g_cfg.padV, ts.width, ts.height);
 }
 
 - (void)tick:(NSTimer*)t {
@@ -521,7 +508,6 @@ static void saveState(void){
         unsigned char* c = g_cfg.thColor[ci];
         g_label.textColor = RGBAColor(c[0], c[1], c[2], c[3]/255.0);
     }
-    [self layout];
   } @catch (NSException* e) {
     dlog(@"EXC in tick: %@", e);
   }
