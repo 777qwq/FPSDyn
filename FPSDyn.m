@@ -479,6 +479,20 @@ static void saveState(void){
     unsigned int now = CARenderServerGetDirtyFrameCount(0);
     unsigned int diff = now - g_lastFrames;
     g_lastFrames = now;
+
+    // 转屏诊断：window bounds / 设备方向变化时记录
+    {
+        static CGSize lastB = CGSizeZero;
+        static NSInteger lastDev = -1;
+        CGSize cb = g_window.bounds.size;
+        NSInteger dv = (NSInteger)[[UIDevice currentDevice] orientation];
+        if(!CGSizeEqualToSize(cb, lastB) || dv != lastDev){
+            dlog(@"rot diag: dev=%ld winBounds=%.0fx%.0f safeTop=%.0f",
+                 (long)dv, (double)cb.width, (double)cb.height,
+                 (double)g_window.safeAreaInsets.top);
+            lastB = cb; lastDev = dv;
+        }
+    }
     CGFloat maxFPS = [[UIScreen mainScreen] maximumFramesPerSecond];
     if(maxFPS <= 0) maxFPS = 60;
     CGFloat fps = diff / g_cfg.updateInterval;
