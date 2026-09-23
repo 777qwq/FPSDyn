@@ -265,19 +265,6 @@ static void saveState(void){
         [self buildIfNeeded];
         if(g_window.hidden) g_window.hidden = NO;
 
-        // 转屏同步：屏幕坐标系随设备旋转，window 尺寸保持满屏（约束自动跟随新右上角）
-        CGRect sb = [[UIScreen mainScreen] bounds];
-        if(!CGSizeEqualToSize(sb.size, g_window.bounds.size)){
-            CGFloat oldW = g_window.bounds.size.width;
-            CGFloat ratio = (oldW > 1) ? sb.size.height / oldW : 1;
-            g_window.frame = (CGRect){CGPointZero, sb.size};
-            // 等比换算拖动边距（竖屏→横屏）
-            g_offX *= ratio;
-            if(g_trailC) g_trailC.constant = -g_offX;
-            dlog(@"rot: screen %.0fx%.0f offX->%.0f",
-                 (double)sb.size.width, (double)sb.size.height, (double)g_offX);
-        }
-
         // 每 5 tick 热更新配置
         if((tickCount % 5) == 0) loadConfig();
 
