@@ -12,7 +12,7 @@ jobs:
 
       - name: Setup Theos
         run: |
-          git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
+          git clone --depth 1 --recursive --shallow-submodules https://github.com/theos/theos.git $HOME/theos
           curl -sL https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64 -o ldid
           chmod +x ldid && sudo mv ldid /usr/local/bin/ldid
           git clone --depth 1 https://github.com/theos/sdks.git $HOME/sdks
