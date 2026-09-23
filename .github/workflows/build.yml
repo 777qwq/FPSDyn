@@ -6,18 +6,25 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Theos
         run: |
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)" > /dev/null 2>&1
-          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          export THEOS=$HOME/theos
+          brew install ldid xz make 2>/dev/null || true
+          git clone --depth 1 --recursive --shallow-submodules https://github.com/theos/theos.git $THEOS
+          curl -sL https://github.com/theos/sdks/archive/refs/heads/master.zip -o sdks.zip
+          unzip -q sdks.zip
+          mkdir -p $THEOS/sdks
+          ln -s "$PWD/sdks-master/iPhoneOS16.5.sdk" $THEOS/sdks/iPhoneOS16.5.sdk
+          echo "THEOS=$THEOS" >> $GITHUB_ENV
+          echo "PATH=/opt/homebrew/bin:/usr/local/bin:$PATH" >> $GITHUB_ENV
 
       - name: Build package
         run: |
-          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless > build.log 2>&1 || { tail -60 build.log; exit 1; }
+          gmake package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless ARCHS="arm64 arm64e" > build.log 2>&1 || { tail -60 build.log; exit 1; }
 
       - name: Upload deb
         uses: actions/upload-artifact@v4
