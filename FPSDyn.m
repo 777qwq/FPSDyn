@@ -197,12 +197,25 @@ static BOOL fpsdyn_isLocked(void){
     return NO;
 }
 
+// 状态栏样式刷新（通知驱动，平时零轮询开销）
+static void refreshAdaptiveColor(void){
+    if(!g_label) return;
+    @try {
+        NSInteger sbStyle = ((NSInteger(*)(id,SEL))objc_msgSend)(
+            [UIApplication sharedApplication], @selector(statusBarStyle));
+        g_label.textColor = (sbStyle == 1) ? [UIColor blackColor] : [UIColor whiteColor];
+    } @catch (NSException* e) {
+        dlog(@"EXC sbStyle: %@", e);
+    }
+}
+
 // ---------- Manager ----------
 @interface FPSDynManager : NSObject
 + (id)sharedInstance;
 - (void)tick:(NSTimer*)t;
 - (void)onPan:(UIPanGestureRecognizer*)g;
 - (void)onTap:(UITapGestureRecognizer*)g;
+- (void)statusBarChanged:(NSNotification*)n;
 @end
 
 static void saveState(void){
@@ -272,6 +285,19 @@ static void saveState(void){
         initWithTarget:self action:@selector(onTap:)];
     [g_label addGestureRecognizer:tap];
     dlog(@"window built, constraints attached");
+    // 状态栏样式变化通知（跟随状态栏档的刷新源）
+    static BOOL g_sbObs = NO;
+    if(!g_sbObs){
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(statusBarChanged:)
+                                                     name:@"UIApplicationDidChangeStatusBarFrameNotification"
+                                                   object:nil];
+        g_sbObs = YES;
+    }
+}
+
+- (void)statusBarChanged:(NSNotification*)n {
+    if(g_colorIdx == 1) refreshAdaptiveColor();
 }
 
 - (void)onPan:(UIPanGestureRecognizer*)g {
@@ -306,6 +332,7 @@ static void saveState(void){
     @try {
         g_colorIdx = (g_colorIdx + 1) % 7;
         g_lastColorIdx = -1;
+        if(g_colorIdx == 1) refreshAdaptiveColor();
         saveState();
         dlog(@"color -> %d (%s)", g_colorIdx, kColorNames[g_colorIdx]);
     } @catch (NSException* e) {
@@ -359,12 +386,9 @@ static void saveState(void){
         g_label.text = [NSString stringWithFormat:@"%.0f FPS", fps];
         [g_label sizeToFit];
 
-        // 颜色：AUTO=阈值变色，1=跟随状态栏(反色适应)，2-6=固定色盘
+        // 颜色：AUTO=阈值变色，1=跟随状态栏(通知驱动)，2-6=固定色盘
         if(g_colorIdx == 1){
-            // 状态栏白图标→黑字，状态栏深色图标→白字（与状态栏反色）
-            NSInteger sbStyle = ((NSInteger(*)(id,SEL))objc_msgSend)(
-                [UIApplication sharedApplication], @selector(statusBarStyle));
-            g_label.textColor = (sbStyle == 1) ? [UIColor blackColor] : [UIColor whiteColor];
+            if(g_lastColorIdx != 1) refreshAdaptiveColor(); // 仅切换进该档时刷一次
         }else if(g_colorIdx > 1){
             if(g_colorIdx != g_lastColorIdx){
                 g_lastColorIdx = g_colorIdx;
