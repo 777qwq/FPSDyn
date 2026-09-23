@@ -1,6 +1,6 @@
 Package: com.user.fpsdyn
 Name: FPSDyn
-Version: 3.0.2
+Version: 3.0.3
 Architecture: iphoneos-arm
 Description: FPS 悬浮显示（Theos 真工具链编译，rootless）
 Maintainer: user

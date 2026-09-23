@@ -16,9 +16,6 @@
 extern unsigned int CARenderServerGetDirtyFrameCount(unsigned int);
 extern CGColorRef CGColorCreateGenericRGB(CGFloat r, CGFloat g, CGFloat b, CGFloat a);
 extern void CGColorRelease(CGColorRef c);
-@interface UIApplication (FPSDynPrivate)
-@property (nonatomic, readonly) UIWindowScene* firstWindowScene;
-@end
 
 @class FPSDynWindow;
 
@@ -181,14 +178,18 @@ static void dlog(NSString* fmt, ...){
 - (void)buildIfNeeded {
     if(g_window) return;
 
-    // 与原版一致：firstWindowScene + initWithWindowScene:
-    UIWindowScene* scene = [(UIApplication*)[UIApplication sharedApplication] firstWindowScene];
+    // 公开 API 取第一个前台 UIWindowScene（iOS 13+ 通用）
+    UIWindowScene* scene = nil;
+    NSSet<UIScene*>* scenes = [[UIApplication sharedApplication] connectedScenes];
+    for(UIScene* s in scenes){
+        if([s isKindOfClass:[UIWindowScene class]]){ scene = (UIWindowScene*)s; break; }
+    }
     if(scene){
         g_window = [[FPSDynWindow alloc] initWithWindowScene:scene];
-        dlog(@"window created with firstWindowScene");
+        dlog(@"window created with connectedScenes UIWindowScene");
     }else{
         g_window = [[FPSDynWindow alloc] initWithFrame:CGRectMake(0,0,120,40)];
-        dlog(@"WARN: no firstWindowScene, fallback plain window");
+        dlog(@"WARN: no UIWindowScene, fallback plain window");
     }
     [g_window setWindowLevel:2000.0];
     g_window.backgroundColor = [UIColor clearColor];
