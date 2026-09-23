@@ -144,8 +144,8 @@ static void ensureDefaultConfig(void){
             "offsetX / offsetY  相对方位的偏移（像素）\n"
             "posX / posY        拖动后的绝对坐标（-1 表示未拖动过，删掉这两项可恢复方位模式）\n\n"
             "colorIndex         颜色档位（点击 HUD 循环切换，此键会被点击操作自动更新）：\n"
-            "                   0=自动阈值变色  1=跟随系统(深色白字/浅色黑字)  2=纯白  3=纯黑\n"
-            "                   4=荧光绿  5=COD黄  6=霓虹青  7=半透明白  8=性能红\n\n"
+            "                   0=自动阈值变色  1=跟随系统(深色白字/浅色黑字)  2=荧光绿\n"
+            "                   3=COD黄  4=霓虹青  5=半透明白  6=性能红\n\n"
             "thresholds         自动变色规则（子字典，键=FPS下界，值=RRGGBBAA 颜色）：\n"
             "                   默认 ≥50 绿 / ≥40 黄 / 其余红，可增删档位如 \"58\"=\"BF5AF2FF\"\n\n"
             "shadowColor        文字阴影色 RRGGBBAA（00000000=关闭阴影）\n"
@@ -190,7 +190,7 @@ static void loadConfig(void){
 
     g_manualColor = (int)pFloat(d, @"colorIndex", 0);
     if(g_manualColor < 0) g_manualColor = 0;
-    if(g_manualColor > 8) g_manualColor = 8;
+    if(g_manualColor > 6) g_manualColor = 6;
     g_pos.x = pFloat(d, @"posX", -1);
     g_pos.y = pFloat(d, @"posY", -1);
 
@@ -336,10 +336,10 @@ static void saveState(void){
 - (void)onTap:(UITapGestureRecognizer*)g {
     if([g state] != UIGestureRecognizerStateEnded) return;
     @try {
-        g_manualColor = (g_manualColor + 1) % 9;   // 0=AUTO 1=跟随系统 2=纯白 3=纯黑 4-8=色盘
+        g_manualColor = (g_manualColor + 1) % 7;   // 0=AUTO 1=跟随系统(黑白) 2-6=色盘
         g_lastColorIdx = -1;                       // 强制重设颜色
         saveState();
-        const char* names[9] = {"AUTO","跟随系统","纯白","纯黑","荧光绿","COD黄","霓虹青","半透明白","性能红"};
+        const char* names[7] = {"AUTO","跟随系统","荧光绿","COD黄","霓虹青","半透明白","性能红"};
         dlog(@"color -> %d (%s)", g_manualColor, names[g_manualColor]);
     } @catch (NSException* e) {
         dlog(@"EXC in tap: %@", e);
@@ -443,10 +443,8 @@ static void saveState(void){
             UIUserInterfaceStyle style = [UIScreen mainScreen].traitCollection.userInterfaceStyle;
             c = (style == UIUserInterfaceStyleDark) ? [UIColor whiteColor] : [UIColor blackColor];
         }
-        else if(g_manualColor == 2) c = [UIColor whiteColor];
-        else if(g_manualColor == 3) c = [UIColor blackColor];
         else {
-            const unsigned char* p = kPalette[g_manualColor-4];
+            const unsigned char* p = kPalette[g_manualColor-2];
             c = RGBAColor(p[0], p[1], p[2], p[3]/255.0);
         }
         g_label.textColor = c;
