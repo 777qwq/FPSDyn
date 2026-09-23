@@ -269,9 +269,16 @@ static void saveState(void){
         NSMutableDictionary* d = [loadPrefs() mutableCopy] ?: [NSMutableDictionary dictionary];
         [d setObject:[NSNumber numberWithInt:g_manualColor] forKey:@"colorIndex"];
         if(g_window){
-            // 记录中心点坐标（横竖屏通吃）
-            [d setObject:[NSNumber numberWithDouble:g_window.center.x] forKey:@"posX"];
-            [d setObject:[NSNumber numberWithDouble:g_window.center.y] forKey:@"posY"];
+            // 统一换算回竖屏坐标存储（横屏时按比例映射回去），旋转后位置才能跟随
+            CGPoint c = g_window.center;
+            UIDeviceOrientation dev = [[UIDevice currentDevice] orientation];
+            if(dev == UIDeviceOrientationLandscapeLeft || dev == UIDeviceOrientationLandscapeRight){
+                CGRect b = [[UIScreen mainScreen] bounds];
+                CGFloat W = b.size.height, H = b.size.width;
+                c = CGPointMake(c.x / W * b.size.width, c.y / H * b.size.height);
+            }
+            [d setObject:[NSNumber numberWithDouble:c.x] forKey:@"posX"];
+            [d setObject:[NSNumber numberWithDouble:c.y] forKey:@"posY"];
         }
         [d writeToFile:@PREF_PATH atomically:YES];
     } @catch (NSException* e) {
@@ -339,8 +346,8 @@ static void saveState(void){
             CGPoint tr = [g translationInView:g_window];
             // 旋转补偿：把窗口坐标系位移换算到屏幕坐标系（用硬件方向）
             UIDeviceOrientation dev = [[UIDevice currentDevice] orientation];
-            CGFloat angle = (dev == UIDeviceOrientationLandscapeLeft) ? -(CGFloat)M_PI_2
-                          : (dev == UIDeviceOrientationLandscapeRight) ? (CGFloat)M_PI_2 : 0;
+            CGFloat angle = (dev == UIDeviceOrientationLandscapeLeft) ? (CGFloat)M_PI_2
+                          : (dev == UIDeviceOrientationLandscapeRight) ? -(CGFloat)M_PI_2 : 0;
             CGPoint d = CGPointApplyAffineTransform(tr, CGAffineTransformMakeRotation(angle));
             CGPoint c = g_window.center;
             c.x += d.x; c.y += d.y;
@@ -419,14 +426,22 @@ static void saveState(void){
     BOOL land = UIInterfaceOrientationIsLandscape(o);
     CGFloat angle = 0;
     CGFloat W = b.size.width, H = b.size.height;
-    if(o == UIInterfaceOrientationLandscapeLeft)       { angle = -(CGFloat)M_PI_2; W = b.size.height; H = b.size.width; }
-    else if(o == UIInterfaceOrientationLandscapeRight) { angle =  (CGFloat)M_PI_2; W = b.size.height; H = b.size.width; }
+    if(o == UIInterfaceOrientationLandscapeLeft)       { angle =  (CGFloat)M_PI_2; W = b.size.height; H = b.size.width; }
+    else if(o == UIInterfaceOrientationLandscapeRight) { angle = -(CGFloat)M_PI_2; W = b.size.height; H = b.size.width; }
 
     CGFloat x = 0, y = 0;
     if(g_pos.x >= 0 || g_pos.y >= 0){
-        // 拖动过：记录的是中心点坐标
-        x = (g_pos.x >= 0) ? g_pos.x - w/2 : g_cfg.offsetX;
-        y = (g_pos.y >= 0) ? g_pos.y - h/2 : g_cfg.offsetY;
+        if(!land){
+            // 竖屏：posX/posY 就是竖屏中心点
+            x = (g_pos.x >= 0) ? g_pos.x - w/2 : g_cfg.offsetX;
+            y = (g_pos.y >= 0) ? g_pos.y - h/2 : g_cfg.offsetY;
+        }else{
+            // 横屏：竖屏坐标按屏幕比例映射（右上角↔右上角）
+            CGFloat fx = (g_pos.x >= 0) ? g_pos.x / b.size.width  : 0.5;
+            CGFloat fy = (g_pos.y >= 0) ? g_pos.y / b.size.height : 0.5;
+            x = fx * W - w/2;
+            y = fy * H - h/2;
+        }
     }else{
         const char* p = g_cfg.position;
         if(p[0]=='t')      y = g_cfg.offsetY;
