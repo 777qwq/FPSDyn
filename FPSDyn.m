@@ -247,7 +247,11 @@ static void saveState(void){
 
     g_label = [[UILabel alloc] initWithFrame:CGRectZero];
     g_label.text = @"-- FPS";
-    g_label.font = [UIFont systemFontOfSize:g_fontSize weight:g_fontWeight];
+    // 配置用 CSS 字重(100~900)，换算到 UIKit 刻度(-1.0~1.0)
+    CGFloat w = (g_fontWeight - 400.0) / 500.0;
+    if(w < -1.0) w = -1.0;
+    if(w > 1.0)  w = 1.0;
+    g_label.font = [UIFont systemFontOfSize:g_fontSize weight:w];
     g_label.textColor = [UIColor whiteColor];
     g_label.userInteractionEnabled = YES;
     g_label.translatesAutoresizingMaskIntoConstraints = NO;
