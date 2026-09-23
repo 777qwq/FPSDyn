@@ -49,7 +49,9 @@ static NSTimer* g_timer = nil;
 static unsigned int g_lastFrames = 0;
 static int g_lastColorIdx = -1;
 static int g_manualColor = 0;          // 0=AUTO(阈值变色) 1-5=固定色盘
-static CGPoint g_pos = {-1, -1};       // 拖动后的绝对位置（-1 = 用 position/offset）
+static CGPoint g_pos = {-1, -1};       // 拖动后的中心点坐标（-1 = 用 position/offset）
+static id g_probeInst = nil;           // 锁状态探测：实例
+static SEL g_probeSel = NULL;          // 锁状态探测：发现的方法
 
 // ---------- 五色盘（用户指定） ----------
 static const unsigned char kPalette[5][4] = {
@@ -315,6 +317,7 @@ static void saveState(void){
     [self applyStyle];
     static BOOL g_obsRegistered = NO;
     if(!g_obsRegistered){
+        [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(orientationChanged:)
                                                      name:UIDeviceOrientationDidChangeNotification
@@ -330,11 +333,10 @@ static void saveState(void){
         NSInteger st = [g state];
         if(st == UIGestureRecognizerStateBegan || st == UIGestureRecognizerStateChanged){
             CGPoint tr = [g translationInView:g_window];
-            // 旋转补偿：把窗口坐标系位移换算到屏幕坐标系
-            UIInterfaceOrientation o = g_window.windowScene ? g_window.windowScene.interfaceOrientation
-                                                            : UIInterfaceOrientationPortrait;
-            CGFloat angle = (o == UIInterfaceOrientationLandscapeLeft) ? -(CGFloat)M_PI_2
-                          : (o == UIInterfaceOrientationLandscapeRight) ? (CGFloat)M_PI_2 : 0;
+            // 旋转补偿：把窗口坐标系位移换算到屏幕坐标系（用硬件方向）
+            UIDeviceOrientation dev = [[UIDevice currentDevice] orientation];
+            CGFloat angle = (dev == UIDeviceOrientationLandscapeLeft) ? -(CGFloat)M_PI_2
+                          : (dev == UIDeviceOrientationLandscapeRight) ? (CGFloat)M_PI_2 : 0;
             CGPoint d = CGPointApplyAffineTransform(tr, CGAffineTransformMakeRotation(angle));
             CGPoint c = g_window.center;
             c.x += d.x; c.y += d.y;
@@ -398,8 +400,11 @@ static void saveState(void){
     CGFloat w = ts.width + g_cfg.padH*2, h = ts.height + g_cfg.padV*2;
 
     // 横屏：SpringBoard 坐标系恒为竖屏，需旋转变换
-    UIInterfaceOrientation o = g_window.windowScene ? g_window.windowScene.interfaceOrientation
-                                                    : UIInterfaceOrientationPortrait;
+    // windowScene.interfaceOrientation 在 SpringBoard 恒报 Portrait，改用硬件方向
+    UIDeviceOrientation dev = [[UIDevice currentDevice] orientation];
+    UIInterfaceOrientation o = UIInterfaceOrientationPortrait;
+    if(dev == UIDeviceOrientationLandscapeLeft)        o = UIInterfaceOrientationLandscapeLeft;
+    else if(dev == UIDeviceOrientationLandscapeRight)  o = UIInterfaceOrientationLandscapeRight;
     BOOL land = UIInterfaceOrientationIsLandscape(o);
     CGFloat angle = 0;
     CGFloat W = b.size.width, H = b.size.height;
@@ -455,28 +460,46 @@ static void saveState(void){
     }
     [self buildIfNeeded];
 
-    // 锁屏隐藏：多源探测 + 状态变化时打日志
+    // 锁屏隐藏：运行时自动发现锁状态方法（不依赖具体选择器名）
     if(g_cfg.hideOnLock){
         static int g_lastLocked = -1;
         BOOL locked = NO;
         @try {
-            Class cls = objc_getClass("SBLockScreenManager");
-            id lm = cls ? [cls performSelector:@selector(sharedInstance)] : nil;
-            if(lm && [lm respondsToSelector:@selector(uiLocked)]){
-                locked = ((BOOL(*)(id,SEL))objc_msgSend)(lm, @selector(uiLocked));
-            }else{
-                // 备用：SBLockStateController.lockState (1=锁定)
-                Class c2 = objc_getClass("SBLockStateController");
-                id sc = c2 ? [c2 performSelector:@selector(sharedInstance)] : nil;
-                if(sc && [sc respondsToSelector:@selector(lockState)]){
-                    NSInteger st = ((NSInteger(*)(id,SEL))objc_msgSend)(sc, @selector(lockState));
-                    locked = (st != 0);
-                    static int g_loggedFallback = 0;
-                    if(!g_loggedFallback){ dlog(@"uiLocked N/A, fallback lockState=%ld", (long)st); g_loggedFallback = 1; }
-                }else{
-                    static int g_loggedNA = 0;
-                    if(!g_loggedNA){ dlog(@"WARN: no lock state API (uiLocked & lockState N/A)"); g_loggedNA = 1; }
+            if(!g_probeSel){
+                // 找一个锁管理类，扫其方法列表找锁状态读方法
+                const char* classNames[] = {"SBLockScreenManager", "SBLockStateController", NULL};
+                for(int ci=0; !g_probeSel && classNames[ci]; ci++){
+                    Class cls = objc_getClass(classNames[ci]);
+                    if(!cls) continue;
+                    id inst = ((id(*)(id,SEL))objc_msgSend)(cls, @selector(sharedInstance));
+                    if(!inst) continue;
+                    unsigned int count = 0;
+                    Method* list = class_copyMethodList(object_getClass(inst), &count);
+                    SEL fallback = NULL;
+                    for(unsigned i=0; i<count; i++){
+                        const char* n = sel_getName(method_getName(list[i]));
+                        if(strncmp(n, "set", 3) == 0) continue;
+                        BOOL preferred = strstr(n, "uiLocked") || strstr(n, "UILocked") ||
+                                         strstr(n, "lockState") || strstr(n, "isLocked");
+                        if(preferred){
+                            g_probeSel = method_getName(list[i]);
+                            g_probeInst = inst;
+                            dlog(@"lock probe: class=%s sel=%s", classNames[ci], n);
+                            break;
+                        }
+                        if(!fallback && strstr(n, "ock")) fallback = method_getName(list[i]);
+                    }
+                    if(!g_probeSel && fallback){
+                        g_probeSel = fallback;
+                        g_probeInst = inst;
+                        dlog(@"lock probe(fallback): class=%s sel=%s", classNames[ci], sel_getName(fallback));
+                    }
+                    if(list) free(list);
                 }
+                if(!g_probeSel) dlog(@"WARN: lock probe found nothing (classes/selector missing)");
+            }
+            if(g_probeInst && g_probeSel){
+                locked = ((BOOL(*)(id,SEL))objc_msgSend)(g_probeInst, g_probeSel);
             }
         } @catch (NSException* e) {
             dlog(@"EXC reading lock state: %@", e);
