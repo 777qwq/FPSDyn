@@ -93,6 +93,15 @@ static NSString* pStr(NSDictionary* d, NSString* k, NSString* def){
     return v ? v : def;
 }
 
+// ---------- 调试日志 ----------
+static void dlog(NSString* fmt, ...){
+    va_list ap; va_start(ap, fmt);
+    NSString* s = [[NSString alloc] initWithFormat:fmt arguments:ap];
+    va_end(ap);
+    FILE* f = fopen("/var/mobile/Library/FPSDyn.log", "a");
+    if(f){ fprintf(f, "[FPSDyn] %s\n", [s UTF8String]); fclose(f); }
+}
+
 // 首次启动：把全套默认配置写入文件，方便用户在 Filza 里直接改
 static void ensureDefaultConfig(void){
     @try {
@@ -117,6 +126,35 @@ static void ensureDefaultConfig(void){
         put(@"thresholds", @{@"50": @"30D158FF", @"40": @"FF9F0AFF", @"0": @"FF453AFF"});
         [m writeToFile:@PREF_PATH atomically:YES];
         dlog(@"default config written to " PREF_PATH);
+
+        // 生成中文说明文件（plist 不支持注释，用旁边这份 txt 当注释看）
+        NSString* guide =
+            @"FPSDyn 配置说明\n"
+            "========================================\n"
+            "本文件是 com.user.fpsdyn.plist 的注释版。改完 plist 保存后约 1 秒生效，无需注销。\n"
+            "注意：点击换色 / 拖动位置时，插件会把 colorIndex / posX / posY 写回 plist，属正常现象。\n\n"
+            "enabled            总开关，1=显示 0=隐藏\n"
+            "fontSize           字号，默认 16\n"
+            "fontWeight         字重 100~900：300 细 / 400 常规 / 600 半粗 / 700 粗 / 900 特粗\n"
+            "hideOnLock         1=锁屏时隐藏 HUD，0=锁屏也显示\n"
+            "updateInterval     刷新间隔（秒），默认 1.0，最小 0.1\n\n"
+            "position           初始方位（拖动过 HUD 后会被 posX/posY 取代）：\n"
+            "                   top-left / top-right / top-center /\n"
+            "                   bottom-left / bottom-right / bottom-center / center\n"
+            "offsetX / offsetY  相对方位的偏移（像素）\n"
+            "posX / posY        拖动后的绝对坐标（-1 表示未拖动过，删掉这两项可恢复方位模式）\n\n"
+            "colorIndex         颜色档位：0=自动阈值变色，1=荧光绿 2=COD黄 3=霓虹青 4=半透明白 5=性能红\n"
+            "                   （点击 HUD 即循环切换，此键会被点击操作自动更新）\n\n"
+            "thresholds         自动变色规则（子字典，键=FPS下界，值=RRGGBBAA 颜色）：\n"
+            "                   默认 ≥50 绿 / ≥40 黄 / 其余红，可增删档位如 \"58\"=\"BF5AF2FF\"\n\n"
+            "shadowColor        文字阴影色 RRGGBBAA（00000000=关闭阴影）\n"
+            "shadowBlur         阴影模糊半径\n"
+            "shadowOffsetX/Y    阴影偏移\n\n"
+            "paddingH / paddingV  文字与边缘留白（背景已去除，主要影响点击热区大小）\n"
+            "backgroundColor / cornerRadius   3.2.1 起已废弃，背景永久透明\n\n"
+            "日志文件：/var/mobile/Library/FPSDyn.log\n";
+        [guide writeToFile:@"/var/mobile/Library/FPSDyn配置说明.txt"
+                atomically:YES encoding:NSUTF8StringEncoding error:nil];
     } @catch (NSException* e) {
         dlog(@"EXC in ensureDefaultConfig: %@", e);
     }
@@ -193,15 +231,6 @@ static void loadConfig(void){
 // ---------- 颜色 ----------
 static UIColor* RGBAColor(unsigned char r, unsigned char g, unsigned char b, CGFloat a){
     return [UIColor colorWithRed:r/255.0 green:g/255.0 blue:b/255.0 alpha:a];
-}
-
-// ---------- 调试日志 ----------
-static void dlog(NSString* fmt, ...){
-    va_list ap; va_start(ap, fmt);
-    NSString* s = [[NSString alloc] initWithFormat:fmt arguments:ap];
-    va_end(ap);
-    FILE* f = fopen("/var/mobile/Library/FPSDyn.log", "a");
-    if(f){ fprintf(f, "[FPSDyn] %s\n", [s UTF8String]); fclose(f); }
 }
 
 // ---------- 覆盖窗（仅 HUD 区域接收手势） ----------
