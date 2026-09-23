@@ -109,8 +109,8 @@ static void writeConfigXML(NSDictionary* m){
     [x appendFormat:@"\t<!-- 字号 -->\n\t<key>fontSize</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"fontSize", @16) intValue]];
     [x appendFormat:@"\t<!-- 粗细 100最细 300细 400常规 600半粗 900最粗 -->\n\t<key>fontWeight</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"fontWeight", @600) intValue]];
     [x appendFormat:@"\t<!-- 锁屏隐藏 0=关 1=开 -->\n\t<key>hideOnLock</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"hideOnLock", @1) intValue]];
-    [x appendFormat:@"\t<!-- 初始距右边缘（拖动后由 dragX 接管） -->\n\t<key>offsetX</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"offsetX", @20) doubleValue]);
-    [x appendFormat:@"\t<!-- 初始距顶边缘 -->\n\t<key>offsetY</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"offsetY", @60) doubleValue]);
+    [x appendFormat:@"\t<!-- 初始距右边缘（拖动后由 dragX 接管） -->\n\t<key>offsetX</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"offsetX", @20) doubleValue]
+    [x appendFormat:@"\t<!-- 初始距顶边缘 -->\n\t<key>offsetY</key>\n\t<real>%g</real>\n", [(NSNumber*)v(@"offsetY", @60) doubleValue]
     [x appendFormat:@"\t<!-- 位置锁定 1=禁止拖动 -->\n\t<key>lockPos</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"lockPos", @0) intValue]];
     [x appendFormat:@"\t<!-- 日志 0=关 1=写 /var/mobile/Library/FPSDyn.log -->\n\t<key>log</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"log", @0) intValue]];
     [x appendFormat:@"\t<!-- 文字阴影 0=关 1=开 -->\n\t<key>shadow</key>\n\t<integer>%d</integer>\n", [(NSNumber*)v(@"shadow", @0) intValue]];
