@@ -246,6 +246,7 @@ static void dlog(NSString* fmt, ...){
 }
 
 - (void)tick:(NSTimer*)t {
+  @try {
     // 配置热更新（每 tick 重读，量级为字节，开销可忽略）
     static int tickCount = 0;
     if((tickCount++ % 5) == 0) loadConfig(); // 每 5 tick 重读一次配置
@@ -276,6 +277,9 @@ static void dlog(NSString* fmt, ...){
         g_label.textColor = RGBAColor(c[0], c[1], c[2], c[3]/255.0);
     }
     [self layout];
+  } @catch (NSException* e) {
+    dlog(@"EXC in tick: %@", e);
+  }
 }
 
 - (void)startTimer {
@@ -290,13 +294,21 @@ static void dlog(NSString* fmt, ...){
 // ---------- 入口 ----------
 __attribute__((constructor))
 static void fpsdyn_init(void){
-    dlog(@"constructor hit (dylib loaded)");
-    loadConfig();
-    dlog(@"config loaded: enabled=%d pos=%s th=%d interval=%.1f",
-         g_cfg.enabled, g_cfg.position, g_cfg.thCount, (double)g_cfg.updateInterval);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (long long)(0.5 * 1000000000ull)),
-                   dispatch_get_main_queue(), ^{
-        [[FPSDynManager sharedInstance] startTimer];
-        dlog(@"timer started");
-    });
+    @try {
+        dlog(@"constructor hit (dylib loaded)");
+        loadConfig();
+        dlog(@"config loaded: enabled=%d pos=%s th=%d interval=%.1f",
+             g_cfg.enabled, g_cfg.position, g_cfg.thCount, (double)g_cfg.updateInterval);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (long long)(1.0 * 1000000000ull)),
+                       dispatch_get_main_queue(), ^{
+            @try {
+                [[FPSDynManager sharedInstance] startTimer];
+                dlog(@"timer started");
+            } @catch (NSException* e) {
+                dlog(@"EXC in timer start: %@", e);
+            }
+        });
+    } @catch (NSException* e) {
+        dlog(@"EXC in constructor: %@", e);
+    }
 }

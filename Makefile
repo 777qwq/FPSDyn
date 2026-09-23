@@ -1,6 +1,6 @@
 THEOS_DEVICE_SIM =
 TARGET := iphone:16.5:14.0
-ARCHS = arm64 arm64e
+ARCHS = arm64
 
 include $(THEOS)/makefiles/common.mk
 
