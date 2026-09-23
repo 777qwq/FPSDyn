@@ -255,6 +255,7 @@ static UIColor* RGBAColor(unsigned char r, unsigned char g, unsigned char b, CGF
 - (void)buildIfNeeded;
 - (void)onPan:(UIPanGestureRecognizer*)g;
 - (void)onTap:(UITapGestureRecognizer*)g;
+- (void)orientationChanged:(NSNotification*)n;
 @end
 
 static void saveState(void){
@@ -262,8 +263,9 @@ static void saveState(void){
         NSMutableDictionary* d = [loadPrefs() mutableCopy] ?: [NSMutableDictionary dictionary];
         [d setObject:[NSNumber numberWithInt:g_manualColor] forKey:@"colorIndex"];
         if(g_window){
-            [d setObject:[NSNumber numberWithDouble:g_window.frame.origin.x] forKey:@"posX"];
-            [d setObject:[NSNumber numberWithDouble:g_window.frame.origin.y] forKey:@"posY"];
+            // 记录中心点坐标（横竖屏通吃）
+            [d setObject:[NSNumber numberWithDouble:g_window.center.x] forKey:@"posX"];
+            [d setObject:[NSNumber numberWithDouble:g_window.center.y] forKey:@"posY"];
         }
         [d writeToFile:@PREF_PATH atomically:YES];
     } @catch (NSException* e) {
@@ -311,6 +313,14 @@ static void saveState(void){
     [g_label addGestureRecognizer:tap];
     [g_window addSubview:g_label];
     [self applyStyle];
+    static BOOL g_obsRegistered = NO;
+    if(!g_obsRegistered){
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(orientationChanged:)
+                                                     name:UIDeviceOrientationDidChangeNotification
+                                                   object:nil];
+        g_obsRegistered = YES;
+    }
     dlog(@"window built, label added, gestures attached");
 }
 
@@ -320,20 +330,27 @@ static void saveState(void){
         NSInteger st = [g state];
         if(st == UIGestureRecognizerStateBegan || st == UIGestureRecognizerStateChanged){
             CGPoint tr = [g translationInView:g_window];
-            CGRect f = g_window.frame;
-            f.origin.x += tr.x;
-            f.origin.y += tr.y;
+            // 旋转补偿：把窗口坐标系位移换算到屏幕坐标系
+            UIInterfaceOrientation o = g_window.windowScene ? g_window.windowScene.interfaceOrientation
+                                                            : UIInterfaceOrientationPortrait;
+            CGFloat angle = (o == UIInterfaceOrientationLandscapeLeft) ? -(CGFloat)M_PI_2
+                          : (o == UIInterfaceOrientationLandscapeRight) ? (CGFloat)M_PI_2 : 0;
+            CGPoint d = CGPointApplyAffineTransform(tr, CGAffineTransformMakeRotation(angle));
+            CGPoint c = g_window.center;
+            c.x += d.x; c.y += d.y;
             CGRect b = [[UIScreen mainScreen] bounds];
-            if(f.origin.x < 0) f.origin.x = 0;
-            if(f.origin.y < 0) f.origin.y = 0;
-            if(f.origin.x + f.size.width > b.size.width)  f.origin.x = b.size.width - f.size.width;
-            if(f.origin.y + f.size.height > b.size.height) f.origin.y = b.size.height - f.size.height;
-            g_window.frame = f;
+            CGFloat W = (angle != 0) ? b.size.height : b.size.width;
+            CGFloat H = (angle != 0) ? b.size.width : b.size.height;
+            CGFloat sw = g_window.bounds.size.width, sh = g_window.bounds.size.height;
+            if(c.x < sw/2) c.x = sw/2;
+            if(c.y < sh/2) c.y = sh/2;
+            if(c.x > W - sw/2) c.x = W - sw/2;
+            if(c.y > H - sh/2) c.y = H - sh/2;
+            g_window.center = c;
             [g setTranslation:CGPointZero inView:g_window];
         }else if(st == UIGestureRecognizerStateEnded){
-            g_pos = g_window.frame.origin;
             saveState();
-            dlog(@"pos saved: %.0f,%.0f", (double)g_pos.x, (double)g_pos.y);
+            dlog(@"pos saved: %.0f,%.0f", (double)g_window.center.x, (double)g_window.center.y);
         }
     } @catch (NSException* e) {
         dlog(@"EXC in pan: %@", e);
@@ -376,27 +393,55 @@ static void saveState(void){
 
 - (void)layout {
     if(!g_window || !g_label) return;
-    CGRect bounds = [[UIScreen mainScreen] bounds];
-    CGSize ts = [g_label sizeThatFits:CGSizeMake(bounds.size.width, 300)];
+    CGRect b = [[UIScreen mainScreen] bounds];
+    CGSize ts = [g_label sizeThatFits:CGSizeMake(b.size.width, 300)];
     CGFloat w = ts.width + g_cfg.padH*2, h = ts.height + g_cfg.padV*2;
+
+    // 横屏：SpringBoard 坐标系恒为竖屏，需旋转变换
+    UIInterfaceOrientation o = g_window.windowScene ? g_window.windowScene.interfaceOrientation
+                                                    : UIInterfaceOrientationPortrait;
+    BOOL land = UIInterfaceOrientationIsLandscape(o);
+    CGFloat angle = 0;
+    CGFloat W = b.size.width, H = b.size.height;
+    if(o == UIInterfaceOrientationLandscapeLeft)       { angle = -(CGFloat)M_PI_2; W = b.size.height; H = b.size.width; }
+    else if(o == UIInterfaceOrientationLandscapeRight) { angle =  (CGFloat)M_PI_2; W = b.size.height; H = b.size.width; }
+
     CGFloat x = 0, y = 0;
     if(g_pos.x >= 0 || g_pos.y >= 0){
-        // 拖动过的绝对位置优先
-        x = (g_pos.x >= 0) ? g_pos.x : g_cfg.offsetX;
-        y = (g_pos.y >= 0) ? g_pos.y : g_cfg.offsetY;
+        // 拖动过：记录的是中心点坐标
+        x = (g_pos.x >= 0) ? g_pos.x - w/2 : g_cfg.offsetX;
+        y = (g_pos.y >= 0) ? g_pos.y - h/2 : g_cfg.offsetY;
     }else{
         const char* p = g_cfg.position;
         if(p[0]=='t')      y = g_cfg.offsetY;
-        else if(p[0]=='b') y = bounds.size.height - h - g_cfg.offsetY;
-        else               y = bounds.size.height/2 - h/2;
+        else if(p[0]=='b') y = H - h - g_cfg.offsetY;
+        else               y = H/2 - h/2;
         if(p[0]=='t'||p[0]=='b'){
             if(p[4]=='l')      x = g_cfg.offsetX;
-            else if(p[4]=='r') x = bounds.size.width - w - g_cfg.offsetX;
-            else               x = bounds.size.width/2 - w/2;
+            else if(p[4]=='r') x = W - w - g_cfg.offsetX;
+            else               x = W/2 - w/2;
         }
     }
-    g_window.frame = CGRectMake(x, y, w, h);
-    g_label.frame  = CGRectMake(g_cfg.padH, g_cfg.padV, ts.width, ts.height);
+    // 夹在屏幕内
+    if(x < 0) x = 0; if(y < 0) y = 0;
+    if(x + w > W) x = W - w;
+    if(y + h > H) y = H - h;
+
+    g_label.frame = CGRectMake(g_cfg.padH, g_cfg.padV, ts.width, ts.height);
+    if(land){
+        // 用 bounds+transform+center：内容保持水平可读，位置落在横屏坐标
+        g_window.transform = CGAffineTransformMakeRotation(angle);
+        g_window.bounds = CGRectMake(0, 0, w, h);
+        g_window.center = CGPointMake(x + w/2, y + h/2);
+    }else{
+        g_window.transform = CGAffineTransformIdentity;
+        g_window.bounds = CGRectMake(0, 0, w, h);
+        g_window.center = CGPointMake(x + w/2, y + h/2);
+    }
+}
+
+- (void)orientationChanged:(NSNotification*)n {
+    if(g_window) dispatch_async(dispatch_get_main_queue(), ^{ [self layout]; });
 }
 
 - (void)tick:(NSTimer*)t {
@@ -410,16 +455,35 @@ static void saveState(void){
     }
     [self buildIfNeeded];
 
-    // 锁屏隐藏（SBLockScreenManager.uiLocked，SpringBoard 私有但稳定）
+    // 锁屏隐藏：多源探测 + 状态变化时打日志
     if(g_cfg.hideOnLock){
+        static int g_lastLocked = -1;
         BOOL locked = NO;
         @try {
             Class cls = objc_getClass("SBLockScreenManager");
-            id lm = [cls performSelector:@selector(sharedInstance)];
-            if(lm && [lm respondsToSelector:@selector(uiLocked)])
+            id lm = cls ? [cls performSelector:@selector(sharedInstance)] : nil;
+            if(lm && [lm respondsToSelector:@selector(uiLocked)]){
                 locked = ((BOOL(*)(id,SEL))objc_msgSend)(lm, @selector(uiLocked));
+            }else{
+                // 备用：SBLockStateController.lockState (1=锁定)
+                Class c2 = objc_getClass("SBLockStateController");
+                id sc = c2 ? [c2 performSelector:@selector(sharedInstance)] : nil;
+                if(sc && [sc respondsToSelector:@selector(lockState)]){
+                    NSInteger st = ((NSInteger(*)(id,SEL))objc_msgSend)(sc, @selector(lockState));
+                    locked = (st != 0);
+                    static int g_loggedFallback = 0;
+                    if(!g_loggedFallback){ dlog(@"uiLocked N/A, fallback lockState=%ld", (long)st); g_loggedFallback = 1; }
+                }else{
+                    static int g_loggedNA = 0;
+                    if(!g_loggedNA){ dlog(@"WARN: no lock state API (uiLocked & lockState N/A)"); g_loggedNA = 1; }
+                }
+            }
         } @catch (NSException* e) {
             dlog(@"EXC reading lock state: %@", e);
+        }
+        if((int)locked != g_lastLocked){
+            dlog(@"lock state -> %d", (int)locked);
+            g_lastLocked = (int)locked;
         }
         if(locked){
             if(!g_window.hidden) g_window.hidden = YES;
