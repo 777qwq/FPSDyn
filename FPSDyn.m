@@ -288,8 +288,6 @@ static void dlog(NSString* fmt, ...){
 @end
 
 // ---------- 入口 ----------
-static void fpsdyn_reload_timer(void){ [[FPSDynManager sharedInstance] startTimer]; }
-
 __attribute__((constructor))
 static void fpsdyn_init(void){
     dlog(@"constructor hit (dylib loaded)");
