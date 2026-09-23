@@ -489,7 +489,9 @@ static void saveState(void){
                     SEL fallback = NULL;
                     for(unsigned i=0; i<count; i++){
                         const char* n = sel_getName(method_getName(list[i]));
-                        if(strncmp(n, "set", 3) == 0) continue;
+                        // setter 一律跳过：_setUILocked: / setUILocked: / 任何带参数(冒号)的方法
+                        if(strchr(n, ':')) continue;
+                        if(strstr(n, "set") || strstr(n, "Set")) continue;
                         BOOL preferred = strstr(n, "uiLocked") || strstr(n, "UILocked") ||
                                          strstr(n, "lockState") || strstr(n, "isLocked");
                         if(preferred){
