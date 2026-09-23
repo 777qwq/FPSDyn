@@ -213,20 +213,6 @@ static BOOL fpsdyn_isLocked(void){
     return NO;
 }
 
-// 状态栏样式刷新：直接读挂了 KVO 的 scene.statusBarManager（SpringBoard 真正的样式源）
-static id g_sbmRef = nil;
-static void refreshAdaptiveColor(void){
-    if(!g_label) return;
-    @try {
-        long style = 0;
-        if(g_sbmRef && [g_sbmRef respondsToSelector:@selector(statusBarStyle)])
-            style = ((long(*)(id,SEL))objc_msgSend)(g_sbmRef, @selector(statusBarStyle));
-        g_label.textColor = (style == 1) ? [UIColor blackColor] : [UIColor whiteColor];
-    } @catch (NSException* e) {
-        dlog(@"EXC sbStyle: %@", e);
-    }
-}
-
 // ---------- Manager ----------
 @interface FPSDynManager : NSObject
 + (id)sharedInstance;
@@ -287,6 +273,16 @@ static void saveState(void){
     g_label.translatesAutoresizingMaskIntoConstraints = NO;
     [g_window addSubview:g_label];
 
+    // 文字阴影（配置开关，默认关）
+    CALayer* ls = [g_label layer];
+    if(g_shadow){
+        ls.shadowColor   = g_shadowCol.CGColor;
+        ls.shadowOpacity = 1.0;
+        ls.shadowRadius  = (float)g_shadowBlur;
+        ls.shadowOffset  = CGSizeMake(g_shadowDX, g_shadowDY);
+        ls.masksToBounds = NO;
+    }
+
     // 对标原版：topAnchor/trailingAnchor 钉右上角，常量 = 拖动边距
     g_topC   = [g_label.topAnchor constraintEqualToAnchor:g_window.topAnchor
                                                 constant:g_offY];
@@ -302,42 +298,6 @@ static void saveState(void){
         initWithTarget:self action:@selector(onTap:)];
     [g_label addGestureRecognizer:tap];
     dlog(@"window built, constraints attached");
-
-    // C 方案：KVO 监听 statusBarManager.statusBarStyle（源头事件，样式被写入瞬间回调）
-    static BOOL g_kvoDone = NO;
-    if(!g_kvoDone && scene && [scene respondsToSelector:@selector(statusBarManager)]){
-        id sbm = [scene statusBarManager];
-        if(sbm){
-            g_sbmRef = sbm;   // 保存引用：这就是状态栏渲染读取的样式源
-            @try {
-                [sbm addObserver:self forKeyPath:@"statusBarStyle" options:0 context:nil];
-                g_kvoDone = YES;
-                dlog(@"KVO attached to statusBarManager.statusBarStyle");
-            } @catch (NSException* e) {
-                dlog(@"KVO attach failed: %@", e);
-            }
-        }
-    }
-    [self applyShadow];
-}
-
-- (void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object change:(NSDictionary*)change context:(void*)context {
-    if([keyPath isEqualToString:@"statusBarStyle"]){
-        if(g_colorIdx == 1) refreshAdaptiveColor();
-        return;
-    }
-    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
-}
-
-- (void)applyShadow {
-    if(!g_label) return;
-    CALayer* l = [g_label layer];
-    if(!g_shadow){ l.shadowOpacity = 0; return; }
-    l.shadowColor   = g_shadowCol.CGColor;
-    l.shadowOpacity = 1.0;
-    l.shadowRadius  = (float)g_shadowBlur;
-    l.shadowOffset  = CGSizeMake(g_shadowDX, g_shadowDY);
-    l.masksToBounds = NO;
 }
 
 - (void)onPan:(UIPanGestureRecognizer*)g {
@@ -372,7 +332,6 @@ static void saveState(void){
     @try {
         g_colorIdx = (g_colorIdx + 1) % 7;
         g_lastColorIdx = -1;
-        if(g_colorIdx == 1) refreshAdaptiveColor();
         saveState();
         dlog(@"color -> %d (%s)", g_colorIdx, kColorNames[g_colorIdx]);
     } @catch (NSException* e) {
@@ -413,7 +372,20 @@ static void saveState(void){
         }
 
         // 每 5 tick 热更新配置
-        if((tickCount % 5) == 0){ loadConfig(); [self applyShadow]; }
+        if((tickCount % 5) == 0){
+            loadConfig();
+            // 阴影热更新
+            if(g_label){
+                CALayer* ls = [g_label layer];
+                if(g_shadow){
+                    ls.shadowColor   = g_shadowCol.CGColor;
+                    ls.shadowOpacity = 1.0;
+                    ls.shadowRadius  = (float)g_shadowBlur;
+                    ls.shadowOffset  = CGSizeMake(g_shadowDX, g_shadowDY);
+                    ls.masksToBounds = NO;
+                }else ls.shadowOpacity = 0;
+            }
+        }
 
         unsigned int now = CARenderServerGetDirtyFrameCount(0);
         unsigned int diff = now - g_lastFrames;
@@ -426,9 +398,11 @@ static void saveState(void){
         g_label.text = [NSString stringWithFormat:@"%.0f FPS", fps];
         [g_label sizeToFit];
 
-        // 颜色：AUTO=阈值变色，1=跟随状态栏(KVO 事件 + 每 tick 轻量轮询双保险)，2-6=固定色盘
+        // 颜色：AUTO=阈值变色，1=跟随系统(深色白/浅色黑)，2-6=固定色盘
         if(g_colorIdx == 1){
-            refreshAdaptiveColor(); // 一次 objc_msgSend，纳秒级；KVO 覆盖不到的内部写入路径由它兜住
+            UIUserInterfaceStyle style = [UIScreen mainScreen].traitCollection.userInterfaceStyle;
+            g_label.textColor = (style == UIUserInterfaceStyleDark) ? [UIColor whiteColor]
+                                                                   : [UIColor blackColor];
         }else if(g_colorIdx > 1){
             if(g_colorIdx != g_lastColorIdx){
                 g_lastColorIdx = g_colorIdx;
