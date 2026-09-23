@@ -484,7 +484,7 @@ static void saveState(void){
 
     // 转屏诊断：window bounds / 设备方向变化时记录
     {
-        static CGSize lastB = CGSizeZero;
+        static CGSize lastB = {0, 0};
         static NSInteger lastDev = -1;
         CGSize cb = g_window.bounds.size;
         NSInteger dv = (NSInteger)[[UIDevice currentDevice] orientation];
