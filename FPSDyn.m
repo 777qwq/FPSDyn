@@ -213,13 +213,15 @@ static BOOL fpsdyn_isLocked(void){
     return NO;
 }
 
-// 状态栏样式刷新（通知驱动，平时零轮询开销）
+// 状态栏样式刷新：直接读挂了 KVO 的 scene.statusBarManager（SpringBoard 真正的样式源）
+static id g_sbmRef = nil;
 static void refreshAdaptiveColor(void){
     if(!g_label) return;
     @try {
-        NSInteger sbStyle = ((NSInteger(*)(id,SEL))objc_msgSend)(
-            [UIApplication sharedApplication], @selector(statusBarStyle));
-        g_label.textColor = (sbStyle == 1) ? [UIColor blackColor] : [UIColor whiteColor];
+        long style = 0;
+        if(g_sbmRef && [g_sbmRef respondsToSelector:@selector(statusBarStyle)])
+            style = ((long(*)(id,SEL))objc_msgSend)(g_sbmRef, @selector(statusBarStyle));
+        g_label.textColor = (style == 1) ? [UIColor blackColor] : [UIColor whiteColor];
     } @catch (NSException* e) {
         dlog(@"EXC sbStyle: %@", e);
     }
@@ -306,6 +308,7 @@ static void saveState(void){
     if(!g_kvoDone && scene && [scene respondsToSelector:@selector(statusBarManager)]){
         id sbm = [scene statusBarManager];
         if(sbm){
+            g_sbmRef = sbm;   // 保存引用：这就是状态栏渲染读取的样式源
             @try {
                 [sbm addObserver:self forKeyPath:@"statusBarStyle" options:0 context:nil];
                 g_kvoDone = YES;
