@@ -37,6 +37,7 @@ typedef struct {
     CGFloat updateInterval;
     int hideOnLock;                    // 1=锁屏隐藏（默认1）
     CGFloat fontWeight;                // 100~900（默认600）
+    int dynamicType;                   // 1=字号跟随系统文字大小设置（默认1）
     int thCount;
     CGFloat thBound[MAX_TH];
     unsigned char thColor[MAX_TH][4];
@@ -108,12 +109,13 @@ static void dlog(NSString* fmt, ...){
 static void ensureDefaultConfig(void){
     @try {
         NSDictionary* d = loadPrefs();
-        if(d && [d objectForKey:@"fontWeight"] && [d objectForKey:@"hideOnLock"]) return; // 已有完整配置
+        if(d && [d objectForKey:@"dynamicType"] && [d objectForKey:@"hideOnLock"]) return; // 已有完整配置
         NSMutableDictionary* m = [d mutableCopy] ?: [NSMutableDictionary dictionary];
         void(^put)(NSString*,id) = ^(NSString* k, id v){ if(![m objectForKey:k]) [m setObject:v forKey:k]; };
         put(@"enabled", @1);
         put(@"fontSize", @16);
         put(@"fontWeight", @600);
+        put(@"dynamicType", @1);
         put(@"hideOnLock", @1);
         put(@"updateInterval", @1.0);
         put(@"position", @"top-right");
@@ -138,6 +140,7 @@ static void ensureDefaultConfig(void){
             "enabled            总开关，1=显示 0=隐藏\n"
             "fontSize           字号，默认 16\n"
             "fontWeight         字重 100~900：300 细 / 400 常规 / 600 半粗 / 700 粗 / 900 特粗\n"
+            "dynamicType        1=字号跟随系统文字大小设置缩放（设置→显示与亮度→文字大小），0=固定用 fontSize\n"
             "hideOnLock         1=锁屏时隐藏 HUD，0=锁屏也显示\n"
             "updateInterval     刷新间隔（秒），默认 1.0，最小 0.1\n\n"
             "position           初始方位（拖动过 HUD 后会被 posX/posY 取代）：\n"
@@ -196,6 +199,7 @@ static void loadConfig(void){
     g_cfg.fontWeight = pFloat(d, @"fontWeight", 600);
     if(g_cfg.fontWeight < 100) g_cfg.fontWeight = 100;
     if(g_cfg.fontWeight > 900) g_cfg.fontWeight = 900;
+    g_cfg.dynamicType = (int)pFloat(d, @"dynamicType", 1);
 
     g_manualColor = (int)pFloat(d, @"colorIndex", 0);
     if(g_manualColor < 0) g_manualColor = 0;
@@ -374,7 +378,14 @@ static void saveState(void){
 
 - (void)applyStyle {
     if(!g_label || !g_window) return;
-    g_label.font   = [UIFont systemFontOfSize:g_cfg.fontSize weight:g_cfg.fontWeight];
+    UIFont* f = [UIFont systemFontOfSize:g_cfg.fontSize weight:g_cfg.fontWeight];
+    if(g_cfg.dynamicType){
+        // 跟随系统文字大小设置（设置→显示与亮度→文字大小）
+        UIFontMetrics* m = [UIFontMetrics metricsForTextStyle:UIFontTextStyleBody];
+        UIFont* scaled = [m scaledFontForFont:f];
+        if(scaled) f = scaled;
+    }
+    g_label.font = f;
     g_label.textAlignment = NSTextAlignmentCenter;
     g_label.textColor = RGBAColor(255,255,255,1.0);
 
