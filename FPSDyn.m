@@ -93,6 +93,35 @@ static NSString* pStr(NSDictionary* d, NSString* k, NSString* def){
     return v ? v : def;
 }
 
+// 首次启动：把全套默认配置写入文件，方便用户在 Filza 里直接改
+static void ensureDefaultConfig(void){
+    @try {
+        NSDictionary* d = loadPrefs();
+        if(d && [d objectForKey:@"fontWeight"] && [d objectForKey:@"hideOnLock"]) return; // 已有完整配置
+        NSMutableDictionary* m = [d mutableCopy] ?: [NSMutableDictionary dictionary];
+        void(^put)(NSString*,id) = ^(NSString* k, id v){ if(![m objectForKey:k]) [m setObject:v forKey:k]; };
+        put(@"enabled", @1);
+        put(@"fontSize", @16);
+        put(@"fontWeight", @600);
+        put(@"hideOnLock", @1);
+        put(@"updateInterval", @1.0);
+        put(@"position", @"top-right");
+        put(@"offsetX", @20);
+        put(@"offsetY", @60);
+        put(@"paddingH", @10);
+        put(@"paddingV", @5);
+        put(@"shadowColor", @"000000CC");
+        put(@"shadowBlur", @3);
+        put(@"shadowOffsetX", @0);
+        put(@"shadowOffsetY", @1);
+        put(@"thresholds", @{@"50": @"30D158FF", @"40": @"FF9F0AFF", @"0": @"FF453AFF"});
+        [m writeToFile:@PREF_PATH atomically:YES];
+        dlog(@"default config written to " PREF_PATH);
+    } @catch (NSException* e) {
+        dlog(@"EXC in ensureDefaultConfig: %@", e);
+    }
+}
+
 static void loadConfig(void){
     NSDictionary* d = loadPrefs();
     g_cfg.enabled      = pBool(d, @"enabled", 1);
@@ -408,6 +437,7 @@ __attribute__((constructor))
 static void fpsdyn_init(void){
     @try {
         dlog(@"constructor hit (dylib loaded)");
+        ensureDefaultConfig();
         loadConfig();
         dlog(@"config loaded: enabled=%d pos=%s th=%d interval=%.1f",
              g_cfg.enabled, g_cfg.position, g_cfg.thCount, (double)g_cfg.updateInterval);
