@@ -423,9 +423,9 @@ static void saveState(void){
         g_label.text = [NSString stringWithFormat:@"%.0f FPS", fps];
         [g_label sizeToFit];
 
-        // 颜色：AUTO=阈值变色，1=跟随状态栏(通知驱动)，2-6=固定色盘
+        // 颜色：AUTO=阈值变色，1=跟随状态栏(KVO 事件 + 每 tick 轻量轮询双保险)，2-6=固定色盘
         if(g_colorIdx == 1){
-            if(g_lastColorIdx != 1) refreshAdaptiveColor(); // 仅切换进该档时刷一次
+            refreshAdaptiveColor(); // 一次 objc_msgSend，纳秒级；KVO 覆盖不到的内部写入路径由它兜住
         }else if(g_colorIdx > 1){
             if(g_colorIdx != g_lastColorIdx){
                 g_lastColorIdx = g_colorIdx;
