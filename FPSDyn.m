@@ -145,6 +145,14 @@ static void loadConfig(void){
 }
 @end
 
+// window 必须有 rootViewController 才会参与系统转屏（原版能转的关键差异）
+@interface FPSDynRootVC : UIViewController
+@end
+@implementation FPSDynRootVC
+- (BOOL)shouldAutorotate { return YES; }
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAll; }
+@end
+
 // ---------- Manager ----------
 @interface FPSDynManager : NSObject
 + (id)sharedInstance;
@@ -190,6 +198,8 @@ static void saveState(void){
     g_window.hidden = NO;
     g_window.userInteractionEnabled = YES;
     g_window.frame = (CGRect){CGPointZero, [[UIScreen mainScreen] bounds].size};
+    // 参与 UIKit 转屏的钥匙
+    g_window.rootViewController = [[FPSDynRootVC alloc] init];
 
     g_label = [[UILabel alloc] initWithFrame:CGRectZero];
     g_label.text = @"-- FPS";
