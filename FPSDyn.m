@@ -351,7 +351,7 @@ static void saveState(void){
             Class cls = objc_getClass("SBLockScreenManager");
             id lm = [cls performSelector:@selector(sharedInstance)];
             if(lm && [lm respondsToSelector:@selector(uiLocked)])
-                locked = [(BOOL(*)(id,SEL))objc_msgSend(lm, @selector(uiLocked))];
+                locked = ((BOOL(*)(id,SEL))objc_msgSend)(lm, @selector(uiLocked));
         } @catch (NSException* e) {
             dlog(@"EXC reading lock state: %@", e);
         }
