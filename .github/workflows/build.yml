@@ -12,12 +12,12 @@ jobs:
 
       - name: Setup Theos
         run: |
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)" > /dev/null 2>&1
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
       - name: Build package
         run: |
-          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless > build.log 2>&1 || { tail -60 build.log; exit 1; }
 
       - name: Upload deb
         uses: actions/upload-artifact@v4
