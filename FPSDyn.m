@@ -11,6 +11,8 @@
 #import <QuartzCore/QuartzCore.h>
 #import <stdio.h>
 #import <stdarg.h>
+#import <objc/runtime.h>
+#import <objc/message.h>
 
 // ---- 私有 API ----
 extern unsigned int CARenderServerGetDirtyFrameCount(unsigned int);
@@ -300,12 +302,9 @@ static void saveState(void){
     layer.shadowOffset  = CGSizeMake(g_cfg.shadowDx, g_cfg.shadowDy);
 
     CALayer* wl = (CALayer*)[g_window layer];
-    wl.cornerRadius = (float)g_cfg.cornerRadius;
-    wl.masksToBounds = g_cfg.cornerRadius > 0;
-    g_window.backgroundColor = RGBAColor((unsigned char)(g_cfg.bg[0]*255),
-                                         (unsigned char)(g_cfg.bg[1]*255),
-                                         (unsigned char)(g_cfg.bg[2]*255),
-                                         g_cfg.bg[3]);
+    wl.cornerRadius = 0;
+    // 去除背景：纯文字 HUD，窗体永远透明（忽略配置中的 backgroundColor）
+    g_window.backgroundColor = [UIColor clearColor];
     [self layout];
 }
 
