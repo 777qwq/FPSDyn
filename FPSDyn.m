@@ -33,6 +33,8 @@ typedef struct {
     unsigned char shadowRGBA[4];
     CGFloat cornerRadius, padH, padV;
     CGFloat updateInterval;
+    int hideOnLock;                    // 1=锁屏隐藏（默认1）
+    CGFloat fontWeight;                // 100~900（默认600）
     int thCount;
     CGFloat thBound[MAX_TH];
     unsigned char thColor[MAX_TH][4];
@@ -111,6 +113,10 @@ static void loadConfig(void){
     g_cfg.padV         = pFloat(d, @"paddingV", 5);
     g_cfg.updateInterval = pFloat(d, @"updateInterval", 1.0);
     if(g_cfg.updateInterval < 0.1) g_cfg.updateInterval = 0.1;
+    g_cfg.hideOnLock = (int)pFloat(d, @"hideOnLock", 1);
+    g_cfg.fontWeight = pFloat(d, @"fontWeight", 600);
+    if(g_cfg.fontWeight < 100) g_cfg.fontWeight = 100;
+    if(g_cfg.fontWeight > 900) g_cfg.fontWeight = 900;
 
     g_manualColor = (int)pFloat(d, @"colorIndex", 0);
     if(g_manualColor < 0) g_manualColor = 0;
@@ -281,7 +287,7 @@ static void saveState(void){
 
 - (void)applyStyle {
     if(!g_label || !g_window) return;
-    g_label.font   = [UIFont systemFontOfSize:g_cfg.fontSize weight:600.0];
+    g_label.font   = [UIFont systemFontOfSize:g_cfg.fontSize weight:g_cfg.fontWeight];
     g_label.textAlignment = NSTextAlignmentCenter;
     g_label.textColor = RGBAColor(255,255,255,1.0);
 
@@ -332,12 +338,29 @@ static void saveState(void){
   @try {
     // 配置热更新（每 tick 重读，量级为字节，开销可忽略）
     static int tickCount = 0;
-    if((tickCount++ % 5) == 0) loadConfig(); // 每 5 tick 重读一次配置
+    if((tickCount++ % 5) == 0){ loadConfig(); if(g_window) [self applyStyle]; } // 每 5 tick 重读配置并刷新样式（字号/字重热更新）
     if(!g_cfg.enabled){
         if(g_window && !g_window.hidden) g_window.hidden = YES;
         return;
     }
     [self buildIfNeeded];
+
+    // 锁屏隐藏（SBLockScreenManager.uiLocked，SpringBoard 私有但稳定）
+    if(g_cfg.hideOnLock){
+        BOOL locked = NO;
+        @try {
+            Class cls = objc_getClass("SBLockScreenManager");
+            id lm = [cls performSelector:@selector(sharedInstance)];
+            if(lm && [lm respondsToSelector:@selector(uiLocked)])
+                locked = [(BOOL(*)(id,SEL))objc_msgSend(lm, @selector(uiLocked))];
+        } @catch (NSException* e) {
+            dlog(@"EXC reading lock state: %@", e);
+        }
+        if(locked){
+            if(!g_window.hidden) g_window.hidden = YES;
+            return;
+        }
+    }
     if(g_window.hidden) g_window.hidden = NO;
 
     unsigned int now = CARenderServerGetDirtyFrameCount(0);
