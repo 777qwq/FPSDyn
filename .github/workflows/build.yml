@@ -1,0 +1,31 @@
+name: Build FPSDyn
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Theos
+        run: |
+          git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
+          curl -sL https://github.com/ProcursusTeam/ldid/releases/latest/download/ldid_linux_x86_64 -o ldid
+          chmod +x ldid && sudo mv ldid /usr/local/bin/ldid
+          git clone --depth 1 https://github.com/theos/sdks.git $HOME/sdks
+          mkdir -p $HOME/theos/sdks
+          ln -s $HOME/sdks/iPhoneOS16.5.sdk $HOME/theos/sdks/iPhoneOS16.5.sdk
+
+      - name: Build package
+        run: |
+          export THEOS=$HOME/theos
+          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+
+      - name: Upload deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: FPSDyn-deb
+          path: packages/*.deb
