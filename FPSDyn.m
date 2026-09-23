@@ -130,7 +130,8 @@ static void loadConfig(void){
     g_shadowBlur = pFloat(d, @"shadowBlur", 4);
     g_shadowDX   = pFloat(d, @"shadowOffsetX", 0);
     g_shadowDY   = pFloat(d, @"shadowOffsetY", 1);
-    g_shadowCol  = RGBAHex(pStr(d, @"shadowColor", @"000000CC"));
+    NSString* sc = [d objectForKey:@"shadowColor"];
+    g_shadowCol  = RGBAHex(sc ? sc : @"000000CC");
     g_colorIdx   = (int)pFloat(d, @"colorIndex", 0);
     if(g_colorIdx < 0) g_colorIdx = 0;
     if(g_colorIdx > 6) g_colorIdx = 6;
