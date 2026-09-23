@@ -277,8 +277,8 @@ static void saveState(void){
         NSMutableDictionary* d = [loadPrefs() mutableCopy] ?: [NSMutableDictionary dictionary];
         [d setObject:[NSNumber numberWithInt:g_manualColor] forKey:@"colorIndex"];
         if(g_trailC && g_topC){
-            [d setObject:[NSNumber numberWithDouble:g_trailC.constant] forKey:@"dragX"];
-            [d setObject:[NSNumber numberWithDouble:g_topC.constant]   forKey:@"dragY"];
+            [d setObject:[NSNumber numberWithDouble:g_dragX] forKey:@"dragX"];
+            [d setObject:[NSNumber numberWithDouble:g_dragY] forKey:@"dragY"];
         }
         [d writeToFile:@PREF_PATH atomically:YES];
     } @catch (NSException* e) {
@@ -349,19 +349,21 @@ static void saveState(void){
         NSInteger st = [g state];
         if(st == UIGestureRecognizerStateBegan || st == UIGestureRecognizerStateChanged){
             CGPoint tr = [g translationInView:g_window];
-            // 拖动改约束常量：水平拖 → trailing 边距减小/增大；竖直拖 → top 边距
-            g_trailC.constant -= tr.x;
-            g_topC.constant   += tr.y;
             CGRect b = [[UIScreen mainScreen] bounds];
             CGFloat lw = g_label.bounds.size.width, lh = g_label.bounds.size.height;
-            if(g_trailC.constant < 8) g_trailC.constant = 8;
-            if(g_trailC.constant > b.size.width - lw - 8)  g_trailC.constant = b.size.width - lw - 8;
-            if(g_topC.constant < 8) g_topC.constant = 8;
-            if(g_topC.constant > b.size.height - lh - 8)   g_topC.constant = b.size.height - lh - 8;
+            // 统一用"正数边距"语义，再写入约束常量（trailing 约束常量 = -inset）
+            g_dragX -= tr.x;   // 往右拖 → 右边距减小
+            g_dragY += tr.y;   // 往下拖 → 上边距增大
+            if(g_dragX < 8) g_dragX = 8;
+            if(g_dragX > b.size.width - lw - 8)  g_dragX = b.size.width - lw - 8;
+            if(g_dragY < 8) g_dragY = 8;
+            if(g_dragY > b.size.height - lh - 8) g_dragY = b.size.height - lh - 8;
+            g_trailC.constant = -g_dragX;
+            g_topC.constant   = g_dragY;
             [g setTranslation:CGPointZero inView:g_window];
         }else if(st == UIGestureRecognizerStateEnded){
             saveState();
-            dlog(@"insets saved: %.0f,%.0f", (double)g_trailC.constant, (double)g_topC.constant);
+            dlog(@"insets saved: %.0f,%.0f", (double)g_dragX, (double)g_dragY);
         }
     } @catch (NSException* e) {
         dlog(@"EXC in pan: %@", e);
