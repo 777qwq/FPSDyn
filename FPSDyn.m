@@ -232,11 +232,9 @@ static void saveState(void){
     UIPanGestureRecognizer* pan = [[UIPanGestureRecognizer alloc]
         initWithTarget:self action:@selector(onPan:)];
     [g_label addGestureRecognizer:pan];
-    [pan release];
     UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
         initWithTarget:self action:@selector(onTap:)];
     [g_label addGestureRecognizer:tap];
-    [tap release];
     [g_window addSubview:g_label];
     [self applyStyle];
     dlog(@"window built, label added, gestures attached");
