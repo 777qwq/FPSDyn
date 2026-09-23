@@ -153,7 +153,7 @@ static void writeConfigXML(NSDictionary* m){
 // 首次启动写默认配置（已有完整配置则跳过）
 static void ensureDefaultConfig(void){
     NSDictionary* d = loadPrefs();
-    if(d && [d objectForKey:@"dragX"] && [d objectForKey:@"fontSize"]) return;
+    if(d && [d objectForKey:@"shadowColor"] && [d objectForKey:@"log"]) return;
     NSMutableDictionary* m = [d mutableCopy] ?: [NSMutableDictionary dictionary];
     void(^put)(NSString*,id) = ^(NSString* k, id v){ if(![m objectForKey:k]) [m setObject:v forKey:k]; };
     put(@"enabled", @1);
