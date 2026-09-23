@@ -261,7 +261,6 @@ static UIColor* RGBAColor(unsigned char r, unsigned char g, unsigned char b, CGF
 - (void)buildIfNeeded;
 - (void)onPan:(UIPanGestureRecognizer*)g;
 - (void)onTap:(UITapGestureRecognizer*)g;
-- (void)orientationChanged:(NSNotification*)n;
 @end
 
 static void saveState(void){
@@ -269,21 +268,8 @@ static void saveState(void){
         NSMutableDictionary* d = [loadPrefs() mutableCopy] ?: [NSMutableDictionary dictionary];
         [d setObject:[NSNumber numberWithInt:g_manualColor] forKey:@"colorIndex"];
         if(g_window){
-            // 统一换算回竖屏坐标存储：横屏中心(cx,cy) → 竖屏中心(px,py)
-            // LandscapeLeft(逆时针90°)映射的逆变换: px = W_p - cy, py = cx
-            CGPoint c = g_window.center;
-            UIDeviceOrientation dev = [[UIDevice currentDevice] orientation];
-            if(dev == UIDeviceOrientationLandscapeLeft){
-                // 逆映射: px = W_p - cy, py = cx
-                CGRect b = [[UIScreen mainScreen] bounds];
-                c = CGPointMake(b.size.width - c.y, c.x);
-            }else if(dev == UIDeviceOrientationLandscapeRight){
-                // 逆映射: px = cy, py = H_p - cx
-                CGRect b = [[UIScreen mainScreen] bounds];
-                c = CGPointMake(c.y, b.size.height - c.x);
-            }
-            [d setObject:[NSNumber numberWithDouble:c.x] forKey:@"posX"];
-            [d setObject:[NSNumber numberWithDouble:c.y] forKey:@"posY"];
+            [d setObject:[NSNumber numberWithDouble:g_window.center.x] forKey:@"posX"];
+            [d setObject:[NSNumber numberWithDouble:g_window.center.y] forKey:@"posY"];
         }
         [d writeToFile:@PREF_PATH atomically:YES];
     } @catch (NSException* e) {
@@ -333,11 +319,6 @@ static void saveState(void){
     [self applyStyle];
     static BOOL g_obsRegistered = NO;
     if(!g_obsRegistered){
-        [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(orientationChanged:)
-                                                     name:UIDeviceOrientationDidChangeNotification
-                                                   object:nil];
         g_obsRegistered = YES;
     }
     dlog(@"window built, label added, gestures attached");
@@ -349,21 +330,14 @@ static void saveState(void){
         NSInteger st = [g state];
         if(st == UIGestureRecognizerStateBegan || st == UIGestureRecognizerStateChanged){
             CGPoint tr = [g translationInView:g_window];
-            // 旋转补偿：把窗口坐标系位移换算到屏幕坐标系（用硬件方向）
-            UIDeviceOrientation dev = [[UIDevice currentDevice] orientation];
-            CGFloat angle = (dev == UIDeviceOrientationLandscapeLeft) ? (CGFloat)M_PI_2
-                          : (dev == UIDeviceOrientationLandscapeRight) ? -(CGFloat)M_PI_2 : 0;
-            CGPoint d = CGPointApplyAffineTransform(tr, CGAffineTransformMakeRotation(angle));
             CGPoint c = g_window.center;
-            c.x += d.x; c.y += d.y;
+            c.x += tr.x; c.y += tr.y;
             CGRect b = [[UIScreen mainScreen] bounds];
-            CGFloat W = (angle != 0) ? b.size.height : b.size.width;
-            CGFloat H = (angle != 0) ? b.size.width : b.size.height;
             CGFloat sw = g_window.bounds.size.width, sh = g_window.bounds.size.height;
             if(c.x < sw/2) c.x = sw/2;
             if(c.y < sh/2) c.y = sh/2;
-            if(c.x > W - sw/2) c.x = W - sw/2;
-            if(c.y > H - sh/2) c.y = H - sh/2;
+            if(c.x > b.size.width - sw/2)  c.x = b.size.width - sw/2;
+            if(c.y > b.size.height - sh/2) c.y = b.size.height - sh/2;
             g_window.center = c;
             [g setTranslation:CGPointZero inView:g_window];
         }else if(st == UIGestureRecognizerStateEnded){
@@ -422,68 +396,29 @@ static void saveState(void){
     CGSize ts = [g_label sizeThatFits:CGSizeMake(b.size.width, 300)];
     CGFloat w = ts.width + g_cfg.padH*2, h = ts.height + g_cfg.padV*2;
 
-    // 横屏：SpringBoard 坐标系恒为竖屏，需旋转变换
-    // windowScene.interfaceOrientation 在 SpringBoard 恒报 Portrait，改用硬件方向
-    UIDeviceOrientation dev = [[UIDevice currentDevice] orientation];
-    UIInterfaceOrientation o = UIInterfaceOrientationPortrait;
-    if(dev == UIDeviceOrientationLandscapeLeft)        o = UIInterfaceOrientationLandscapeLeft;
-    else if(dev == UIDeviceOrientationLandscapeRight)  o = UIInterfaceOrientationLandscapeRight;
-    BOOL land = UIInterfaceOrientationIsLandscape(o);
-    CGFloat angle = 0;
-    CGFloat W = b.size.width, H = b.size.height;
-    if(o == UIInterfaceOrientationLandscapeLeft)       { angle =  (CGFloat)M_PI_2; W = b.size.height; H = b.size.width; }
-    else if(o == UIInterfaceOrientationLandscapeRight) { angle = -(CGFloat)M_PI_2; W = b.size.height; H = b.size.width; }
-
+    // 照搬原版：只用竖屏坐标 setFrame:，不做任何旋转/变换
     CGFloat x = 0, y = 0;
     if(g_pos.x >= 0 || g_pos.y >= 0){
-        if(!land){
-            // 竖屏：posX/posY 就是竖屏中心点
-            x = (g_pos.x >= 0) ? g_pos.x - w/2 : g_cfg.offsetX;
-            y = (g_pos.y >= 0) ? g_pos.y - h/2 : g_cfg.offsetY;
-        }else{
-            // 横屏：竖屏坐标做精确旋转映射（物理旋转，不是比例缩放）
-            CGFloat cx, cy;
-            if(o == UIInterfaceOrientationLandscapeLeft){
-                // 设备逆时针转90°: lx = py, ly = W_p - px
-                cx = g_pos.y; cy = b.size.width - g_pos.x;
-            }else{
-                // 设备顺时针转90°: lx = H_p - py, ly = px
-                cx = b.size.height - g_pos.y; cy = g_pos.x;
-            }
-            x = cx - w/2;
-            y = cy - h/2;
-        }
+        x = (g_pos.x >= 0) ? g_pos.x - w/2 : g_cfg.offsetX;
+        y = (g_pos.y >= 0) ? g_pos.y - h/2 : g_cfg.offsetY;
     }else{
         const char* p = g_cfg.position;
         if(p[0]=='t')      y = g_cfg.offsetY;
-        else if(p[0]=='b') y = H - h - g_cfg.offsetY;
-        else               y = H/2 - h/2;
+        else if(p[0]=='b') y = b.size.height - h - g_cfg.offsetY;
+        else               y = b.size.height/2 - h/2;
         if(p[0]=='t'||p[0]=='b'){
             if(p[4]=='l')      x = g_cfg.offsetX;
-            else if(p[4]=='r') x = W - w - g_cfg.offsetX;
-            else               x = W/2 - w/2;
+            else if(p[4]=='r') x = b.size.width - w - g_cfg.offsetX;
+            else               x = b.size.width/2 - w/2;
         }
     }
-    // 夹在屏幕内
     if(x < 0) x = 0; if(y < 0) y = 0;
-    if(x + w > W) x = W - w;
-    if(y + h > H) y = H - h;
+    if(x + w > b.size.width)  x = b.size.width - w;
+    if(y + h > b.size.height) y = b.size.height - h;
 
-    g_label.frame = CGRectMake(g_cfg.padH, g_cfg.padV, ts.width, ts.height);
-    if(land){
-        // 用 bounds+transform+center：内容保持水平可读，位置落在横屏坐标
-        g_window.transform = CGAffineTransformMakeRotation(angle);
-        g_window.bounds = CGRectMake(0, 0, w, h);
-        g_window.center = CGPointMake(x + w/2, y + h/2);
-    }else{
-        g_window.transform = CGAffineTransformIdentity;
-        g_window.bounds = CGRectMake(0, 0, w, h);
-        g_window.center = CGPointMake(x + w/2, y + h/2);
-    }
-}
-
-- (void)orientationChanged:(NSNotification*)n {
-    if(g_window) dispatch_async(dispatch_get_main_queue(), ^{ [self layout]; });
+    g_window.transform = CGAffineTransformIdentity;
+    g_window.frame = CGRectMake(x, y, w, h);
+    g_label.frame  = CGRectMake(g_cfg.padH, g_cfg.padV, ts.width, ts.height);
 }
 
 - (void)tick:(NSTimer*)t {
