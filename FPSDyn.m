@@ -259,10 +259,10 @@ static BOOL fpsdyn_isLocked(void){
         if([s isKindOfClass:[UIWindowScene class]]){ scene = (UIWindowScene*)s; break; }
     }
     if(scene){
-        g_window = [[FPSDynWindow alloc] initWithWindowScene:scene];
+        g_window = [[UIWindow alloc] initWithWindowScene:scene];
         dlog(@"window with scene");
     }else{
-        g_window = [[FPSDynWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+        g_window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
         dlog(@"WARN: no scene, plain window");
     }
     g_window.windowLevel = UIWindowLevelAlert;
