@@ -472,7 +472,7 @@ static void saveState(void){
         if(g_colorIdx == 1){
             if(g_lastColorIdx != 1){ g_lastColorIdx = 1; [self setInvert:YES]; }
         }else{
-            if(g_lastColorIdx == 1 || g_label.layer.compositingFilter) [self setInvert:NO];
+            if(g_label.layer.compositingFilter) [self setInvert:NO];
         }
         if(g_colorIdx > 1){
             if(g_colorIdx != g_lastColorIdx){
@@ -481,7 +481,7 @@ static void saveState(void){
                 g_label.textColor = [UIColor colorWithRed:c[0]/255.0 green:c[1]/255.0
                                                      blue:c[2]/255.0 alpha:c[3]/255.0];
             }
-        }else{
+        }else if(g_colorIdx == 0){
             int ci = g_thCount - 1;
             for(int i=0;i<g_thCount;i++){
                 if(fps >= g_thBound[i]){ ci = i; break; }
