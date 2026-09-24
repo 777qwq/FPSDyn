@@ -38,6 +38,7 @@ static CGFloat  g_thBound[16];
 static unsigned char g_thColor[16][4];
 
 // ---------- 运行状态 ----------
+static UIWindow*            g_window = nil;
 static UILabel*             g_label  = nil;
 static NSTimer*             g_timer  = nil;
 static NSLayoutConstraint*  g_topC   = nil;  // label.top = window.top + offY
@@ -53,7 +54,7 @@ static const unsigned char kPalette[5][4] = {
     {255,255,255,140},  // 4 半透明白 #FFFFFF8C
     {255,69,58,255},    // 5 性能红 #FF453A
 };
-__attribute__((unused)) static const char* kColorNames[7] = {"AUTO","跟随系统","荧光绿","COD黄","霓虹青","半透明白","性能红"};
+static const char* kColorNames[7] = {"AUTO","跟随系统","荧光绿","COD黄","霓虹青","半透明白","性能红"};
 
 // ---------- 工具 ----------
 static int hexNib(int c){
@@ -249,51 +250,60 @@ static BOOL fpsdyn_isLocked(void){
     return inst;
 }
 
-// 挂载：直接进微信主 window（继承 trait 环境，动态色真自适应；转屏原生跟随）
-static UIWindow* fpsdyn_hostWindow(void){
-    UIWindow* best = nil;
-    for(UIWindow* w in [[UIApplication sharedApplication] windows]){
-        if(w.hidden || w.windowLevel != UIWindowLevelNormal) continue;
-        if(!best || [w isKindOfClass:[UIWindow class]] == NO) continue;
-        best = w; break;
-    }
-    if(!best) best = [[UIApplication sharedApplication] keyWindow];
-    return best;
-}
-
 - (void)buildIfNeeded {
-    // 已挂载且宿主存活、可见、仍是当前应选宿主；否则重新挂载
-    if(g_label && g_label.window && !g_label.window.hidden && g_label.window == fpsdyn_hostWindow()) return;
-    UIWindow* host = fpsdyn_hostWindow();
-    if(!host) return;
+    if(g_window) return;
 
-    if(!g_label){
-        g_label = [[UILabel alloc] initWithFrame:CGRectZero];
-        g_label.text = @"-- FPS";
-        CGFloat w = (g_fontWeight - 400.0) / 500.0;   // CSS 字重换算 UIKit 刻度
-        if(w < -1.0) w = -1.0;
-        if(w > 1.0)  w = 1.0;
-        g_label.font = [UIFont systemFontOfSize:g_fontSize weight:w];
-        g_label.textColor = [UIColor whiteColor];
-        g_label.userInteractionEnabled = NO;           // 纯展示：不吃触摸
-        g_label.translatesAutoresizingMaskIntoConstraints = NO;
-        CALayer* ls = [g_label layer];
-        if(g_shadow){
-            ls.shadowColor   = g_shadowCol.CGColor;
-            ls.shadowOpacity = 1.0;
-            ls.shadowRadius  = (float)g_shadowBlur;
-            ls.shadowOffset  = CGSizeMake(g_shadowDX, g_shadowDY);
-            ls.masksToBounds = NO;
-        }
+    // 场景：优先 UIWindowScene 类型，回退 connectedScenes 首个
+    UIWindowScene* scene = nil;
+    for(UIScene* s in [[UIApplication sharedApplication] connectedScenes]){
+        if([s isKindOfClass:[UIWindowScene class]]){ scene = (UIWindowScene*)s; break; }
     }
-    [g_label removeFromSuperview];
-    [host addSubview:g_label];
-    g_topC   = [g_label.topAnchor constraintEqualToAnchor:host.topAnchor constant:g_offY];
-    g_trailC = [g_label.trailingAnchor constraintEqualToAnchor:host.trailingAnchor constant:-g_offX];
+    if(scene){
+        g_window = [[FPSDynWindow alloc] initWithWindowScene:scene];
+        dlog(@"window with scene");
+    }else{
+        g_window = [[FPSDynWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+        dlog(@"WARN: no scene, plain window");
+    }
+    g_window.windowLevel = UIWindowLevelAlert;
+    g_window.backgroundColor = [UIColor clearColor];
+    g_window.hidden = NO;
+    g_window.userInteractionEnabled = YES;
+    g_window.frame = (CGRect){CGPointZero, [[UIScreen mainScreen] bounds].size};
+    // 参与 UIKit 转屏的钥匙
+    g_window.rootViewController = [[FPSDynRootVC alloc] init];
+
+    g_label = [[UILabel alloc] initWithFrame:CGRectZero];
+    g_label.text = @"-- FPS";
+    // 配置用 CSS 字重(100~900)，换算到 UIKit 刻度(-1.0~1.0)
+    CGFloat w = (g_fontWeight - 400.0) / 500.0;
+    if(w < -1.0) w = -1.0;
+    if(w > 1.0)  w = 1.0;
+    g_label.font = [UIFont systemFontOfSize:g_fontSize weight:w];
+    g_label.textColor = [UIColor whiteColor];
+    g_label.userInteractionEnabled = NO;    // 纯展示：不吃触摸
+    g_label.translatesAutoresizingMaskIntoConstraints = NO;
+    [g_window addSubview:g_label];
+
+    // 文字阴影（配置开关，默认关）
+    CALayer* ls = [g_label layer];
+    if(g_shadow){
+        ls.shadowColor   = g_shadowCol.CGColor;
+        ls.shadowOpacity = 1.0;
+        ls.shadowRadius  = (float)g_shadowBlur;
+        ls.shadowOffset  = CGSizeMake(g_shadowDX, g_shadowDY);
+        ls.masksToBounds = NO;
+    }
+
+    // 对标原版：topAnchor/trailingAnchor 钉右上角，常量 = 拖动边距
+    g_topC   = [g_label.topAnchor constraintEqualToAnchor:g_window.topAnchor
+                                                constant:g_offY];
+    g_trailC = [g_label.trailingAnchor constraintEqualToAnchor:g_window.trailingAnchor
+                                                     constant:-g_offX];
     g_topC.active = YES;
     g_trailC.active = YES;
-    g_lastColorIdx = -1;
-    dlog(@"attached to host window %@ (%@) hidden=%d, pos %.0f,%.0f", host, NSStringFromClass([host class]), host.hidden, (double)g_offX, (double)g_offY);
+
+    dlog(@"window built, constraints attached");
 }
 
 - (void)tick:(NSTimer*)t {
@@ -305,13 +315,28 @@ static UIWindow* fpsdyn_hostWindow(void){
             return;
         }
         [self buildIfNeeded];
-        if(!g_label || !g_label.window) return;
+        if(g_window.hidden) g_window.hidden = NO;
         if(g_label.hidden) g_label.hidden = NO;
 
         // 锁屏隐藏
         if(g_hideOnLock && fpsdyn_isLocked()){
             if(!g_label.hidden) g_label.hidden = YES;
             return;
+        }
+
+        // 转屏诊断（log=1 时可见）
+        {
+            static CGSize lastB = {0, 0};
+            CGSize cb = g_window.bounds.size;
+            CGRect sbNow = [[UIScreen mainScreen] bounds];
+            CGAffineTransform t = g_window.transform;
+            if(!CGSizeEqualToSize(cb, lastB) || !CGAffineTransformIsIdentity(t)){
+                dlog(@"rot: screen=%.0fx%.0f winB=%.0fx%.0f t=(%.2f,%.2f,%.2f,%.2f)",
+                     (double)sbNow.size.width, (double)sbNow.size.height,
+                     (double)cb.width, (double)cb.height,
+                     (double)t.a, (double)t.b, (double)t.c, (double)t.d);
+                lastB = cb;
+            }
         }
 
         // 每 5 tick 热更新配置
@@ -389,7 +414,7 @@ static UIWindow* fpsdyn_hostWindow(void){
 __attribute__((constructor))
 static void fpsdyn_init(void){
     @try {
-        dlog(@"constructor hit (v4.5)");
+        dlog(@"constructor hit (v4.6)");
         ensureDefaultConfig();
         loadConfig();
         dlog(@"config: enabled=%d fontSize=%.0f off=%.0f,%.0f color=%d",
