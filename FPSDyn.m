@@ -41,6 +41,7 @@ static unsigned char g_thColor[16][4];
 // ---------- 运行状态 ----------
 static UIWindow*            g_window = nil;
 static UILabel*             g_label  = nil;
+static UIVisualEffectView*  g_vibView = nil;   // colorIndex=1 时的 Vibrancy 容器
 static NSTimer*             g_timer  = nil;
 static NSLayoutConstraint*  g_topC   = nil;  // label.top = window.top + offY
 static NSLayoutConstraint*  g_trailC = nil;  // label.trailing = window.trailing - offX
@@ -273,6 +274,44 @@ static BOOL fpsdyn_isLocked(void){
 @interface FPSDynManager : NSObject
 + (id)sharedInstance;
 - (void)tick:(NSTimer*)t;
+// Vibrancy 容器装/卸：标签在 window 与 vibrancy contentView 之间迁移，锚点约束随宿主重建
+- (void)setVibrancy:(BOOL)on {
+    if(!g_window || !g_label) return;
+    if(on && !g_vibView){
+        UIBlurEffect* blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterial];
+        g_vibView = [[UIVisualEffectView alloc] initWithEffect:[[UIVibrancyEffect alloc] initWithBlurEffect:blur]];
+        g_vibView.translatesAutoresizingMaskIntoConstraints = NO;
+        g_vibView.userInteractionEnabled = YES;
+        [g_window addSubview:g_vibView];
+        // 振动效果要求标签为单色，交给系统混合
+        [g_label removeFromSuperview];
+        [g_vibView.contentView addSubview:g_label];
+        [g_label.topAnchor     constraintEqualToAnchor:g_vibView.contentView.topAnchor].active     = YES;
+        [g_label.bottomAnchor  constraintEqualToAnchor:g_vibView.contentView.bottomAnchor].active  = YES;
+        [g_label.leadingAnchor constraintEqualToAnchor:g_vibView.contentView.leadingAnchor].active = YES;
+        [g_label.trailingAnchor constraintEqualToAnchor:g_vibView.contentView.trailingAnchor].active = YES;
+        // 锚点约束迁到容器上，onPan 继续复用 g_topC/g_trailC
+        [g_topC setActive:NO]; [g_trailC setActive:NO];
+        g_topC   = [g_vibView.topAnchor constraintEqualToAnchor:g_window.topAnchor constant:g_offY];
+        g_trailC = [g_vibView.trailingAnchor constraintEqualToAnchor:g_window.trailingAnchor constant:-g_offX];
+        g_topC.active = YES; g_trailC.active = YES;
+        g_label.textColor = [UIColor whiteColor];
+        dlog(@"vibrancy ON");
+    }else if(!on && g_vibView){
+        [g_topC setActive:NO]; [g_trailC setActive:NO];
+        [g_label removeFromSuperview];
+        [g_window addSubview:g_label];
+        g_vibView.hidden = YES;
+        [g_vibView removeFromSuperview];
+        g_vibView = nil;
+        g_topC   = [g_label.topAnchor constraintEqualToAnchor:g_window.topAnchor constant:g_offY];
+        g_trailC = [g_label.trailingAnchor constraintEqualToAnchor:g_window.trailingAnchor constant:-g_offX];
+        g_topC.active = YES; g_trailC.active = YES;
+        g_lastColorIdx = -1; // 强制下一帧重设色盘色
+        dlog(@"vibrancy OFF");
+    }
+}
+
 - (void)onPan:(UIPanGestureRecognizer*)g;
 - (void)onTap:(UITapGestureRecognizer*)g;
 @end
@@ -454,12 +493,13 @@ static void saveState(void){
         g_label.text = [NSString stringWithFormat:@"%.0f FPS", fps];
         [g_label sizeToFit];
 
-        // 颜色：AUTO=阈值变色，1=跟随系统(深色白/浅色黑)，2-6=固定色盘
+        // 颜色：AUTO=阈值变色，1=UIVibrancyEffect 背色自适应，2-6=固定色盘
         if(g_colorIdx == 1){
-            UIUserInterfaceStyle style = [UIScreen mainScreen].traitCollection.userInterfaceStyle;
-            g_label.textColor = (style == UIUserInterfaceStyleDark) ? [UIColor whiteColor]
-                                                                   : [UIColor blackColor];
-        }else if(g_colorIdx > 1){
+            if(!g_vibView) [self setVibrancy:YES];
+        }else{
+            if(g_vibView) [self setVibrancy:NO];
+        }
+        if(g_colorIdx > 1){
             if(g_colorIdx != g_lastColorIdx){
                 g_lastColorIdx = g_colorIdx;
                 const unsigned char* c = kPalette[g_colorIdx-2];
