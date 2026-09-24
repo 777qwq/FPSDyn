@@ -262,7 +262,8 @@ static UIWindow* fpsdyn_hostWindow(void){
 }
 
 - (void)buildIfNeeded {
-    if(g_label && g_label.window) return;          // 已挂载且宿主存活
+    // 已挂载且宿主存活、可见、仍是当前应选宿主；否则重新挂载
+    if(g_label && g_label.window && !g_label.window.hidden && g_label.window == fpsdyn_hostWindow()) return;
     UIWindow* host = fpsdyn_hostWindow();
     if(!host) return;
 
@@ -292,7 +293,7 @@ static UIWindow* fpsdyn_hostWindow(void){
     g_topC.active = YES;
     g_trailC.active = YES;
     g_lastColorIdx = -1;
-    dlog(@"attached to host window %@, pos %.0f,%.0f", host, (double)g_offX, (double)g_offY);
+    dlog(@"attached to host window %@ (%@) hidden=%d, pos %.0f,%.0f", host, NSStringFromClass([host class]), host.hidden, (double)g_offX, (double)g_offY);
 }
 
 - (void)tick:(NSTimer*)t {
