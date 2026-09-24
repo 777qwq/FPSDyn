@@ -28,7 +28,6 @@ static CGFloat  g_offX      = 20;   // 距右边缘
 static CGFloat  g_offY      = 60;   // 距顶边缘
 static int      g_colorIdx  = 0;    // 0=AUTO 1=跟随系统 2-6=色盘
 static int      g_hideOnLock= 1;    // 1=锁屏隐藏
-static int      g_lockPos   = 0;    // 1=锁定位置（禁止拖动）
 static int      g_log       = 0;    // 日志开关
 static int      g_shadow    = 0;    // 1=文字阴影开启
 static CGFloat  g_shadowBlur= 4;
@@ -39,7 +38,6 @@ static CGFloat  g_thBound[16];
 static unsigned char g_thColor[16][4];
 
 // ---------- 运行状态 ----------
-static UIWindow*            g_window = nil;
 static UILabel*             g_label  = nil;
 static NSTimer*             g_timer  = nil;
 static NSLayoutConstraint*  g_topC   = nil;  // label.top = window.top + offY
@@ -110,7 +108,6 @@ static void writeConfigXML(NSDictionary* m){
     NSNumber* hideOnLock = [m objectForKey:@"hideOnLock"] ?: @1;
     NSNumber* offsetX    = [m objectForKey:@"offsetX"] ?: @20;
     NSNumber* offsetY    = [m objectForKey:@"offsetY"] ?: @60;
-    NSNumber* lockPos    = [m objectForKey:@"lockPos"] ?: @0;
     NSNumber* log        = [m objectForKey:@"log"] ?: @0;
     NSNumber* shadow     = [m objectForKey:@"shadow"] ?: @0;
     NSNumber* shadowBlur = [m objectForKey:@"shadowBlur"] ?: @4;
@@ -127,7 +124,6 @@ static void writeConfigXML(NSDictionary* m){
     [x appendFormat:@"\t<!-- 锁屏隐藏 0=关 1=开 -->\n\t<key>hideOnLock</key>\n\t<integer>%d</integer>\n", hideOnLock.intValue];
     [x appendFormat:@"\t<!-- 初始距右边缘（拖动后由 dragX 接管） -->\n\t<key>offsetX</key>\n\t<real>%g</real>\n", offsetX.doubleValue];
     [x appendFormat:@"\t<!-- 初始距顶边缘 -->\n\t<key>offsetY</key>\n\t<real>%g</real>\n", offsetY.doubleValue];
-    [x appendFormat:@"\t<!-- 位置锁定 1=禁止拖动 -->\n\t<key>lockPos</key>\n\t<integer>%d</integer>\n", lockPos.intValue];
     [x appendFormat:@"\t<!-- 日志 0=关 1=写 /var/mobile/Library/FPSDyn.log -->\n\t<key>log</key>\n\t<integer>%d</integer>\n", log.intValue];
     [x appendFormat:@"\t<!-- 文字阴影 0=关 1=开 -->\n\t<key>shadow</key>\n\t<integer>%d</integer>\n", shadow.intValue];
     [x appendFormat:@"\t<!-- 阴影色 RRGGBBAA（默认黑色 80%% 透明） -->\n\t<key>shadowColor</key>\n\t<string>%@</string>\n", shadowCol];
@@ -162,7 +158,6 @@ static void ensureDefaultConfig(void){
     put(@"offsetX", @20);
     put(@"offsetY", @60);
     put(@"hideOnLock", @1);
-    put(@"lockPos", @0);
     put(@"log", @0);
     put(@"shadow", @0);
     put(@"shadowColor", @"000000CC");
@@ -180,7 +175,6 @@ static void loadConfig(void){
     g_fontSize   = pFloat(d, @"fontSize", 16);
     g_fontWeight = pFloat(d, @"fontWeight", 600);
     g_hideOnLock = (int)pFloat(d, @"hideOnLock", 1);
-    g_lockPos    = (int)pFloat(d, @"lockPos", 0);
     g_log        = (int)pFloat(d, @"log", 0);
     g_shadow     = (int)pFloat(d, @"shadow", 0);
     g_shadowBlur = pFloat(d, @"shadowBlur", 4);
@@ -225,36 +219,6 @@ static void loadConfig(void){
     g_lastColorIdx = -1;
 }
 
-// 覆盖窗：只有 label 区域接收触摸，其余穿透
-@interface FPSDynWindow : UIWindow @end
-@implementation FPSDynWindow
-- (UIView*)hitTest:(CGPoint)p withEvent:(UIEvent*)e {
-    if(!g_label) return nil;
-    CGPoint lp = [g_label convertPoint:p fromView:self];
-    return [g_label pointInside:lp withEvent:e] ? g_label : nil;
-}
-@end
-
-// window 必须有 rootViewController 才会参与系统转屏（原版能转的关键差异）
-@interface FPSDynRootVC : UIViewController
-@end
-@implementation FPSDynRootVC
-- (BOOL)shouldAutorotate { return YES; }
-- (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAll; }
-// 转屏瞬间隐藏 HUD、动画结束立即恢复——避开旋转中间态的四角露底
-- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
-    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
-    [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> ctx) {
-        if(g_window) g_window.hidden = YES;
-    } completion:^(id<UIViewControllerTransitionCoordinatorContext> ctx) {
-        if(g_window){
-            g_window.frame = (CGRect){CGPointZero, size};
-            g_window.hidden = NO;
-        }
-    }];
-}
-@end
-
 // 锁屏检测（v3.x 验证可用：SBLockScreenManager.isUILocked）
 static BOOL fpsdyn_isLocked(void){
     @try {
@@ -273,17 +237,8 @@ static BOOL fpsdyn_isLocked(void){
 @interface FPSDynManager : NSObject
 + (id)sharedInstance;
 - (void)tick:(NSTimer*)t;
-- (void)onPan:(UIPanGestureRecognizer*)g;
-- (void)onTap:(UITapGestureRecognizer*)g;
 @end
 
-static void saveState(void){
-    NSMutableDictionary* d = [loadPrefs() mutableCopy] ?: [NSMutableDictionary dictionary];
-    [d setObject:[NSNumber numberWithInt:g_colorIdx] forKey:@"colorIndex"];
-    [d setObject:[NSNumber numberWithDouble:g_offX] forKey:@"dragX"];
-    [d setObject:[NSNumber numberWithDouble:g_offY] forKey:@"dragY"];
-    writeConfigXML(d);
-}
 
 @implementation FPSDynManager
 
@@ -294,105 +249,50 @@ static void saveState(void){
     return inst;
 }
 
+// 挂载：直接进微信主 window（继承 trait 环境，动态色真自适应；转屏原生跟随）
+static UIWindow* fpsdyn_hostWindow(void){
+    UIWindow* best = nil;
+    for(UIWindow* w in [[UIApplication sharedApplication] windows]){
+        if(w.hidden || w.windowLevel != UIWindowLevelNormal) continue;
+        if(!best || [w isKindOfClass:[UIWindow class]] == NO) continue;
+        best = w; break;
+    }
+    if(!best) best = [[UIApplication sharedApplication] keyWindow];
+    return best;
+}
+
 - (void)buildIfNeeded {
-    if(g_window) return;
+    if(g_label && g_label.window) return;          // 已挂载且宿主存活
+    UIWindow* host = fpsdyn_hostWindow();
+    if(!host) return;
 
-    // 场景：优先 UIWindowScene 类型，回退 connectedScenes 首个
-    UIWindowScene* scene = nil;
-    for(UIScene* s in [[UIApplication sharedApplication] connectedScenes]){
-        if([s isKindOfClass:[UIWindowScene class]]){ scene = (UIWindowScene*)s; break; }
+    if(!g_label){
+        g_label = [[UILabel alloc] initWithFrame:CGRectZero];
+        g_label.text = @"-- FPS";
+        CGFloat w = (g_fontWeight - 400.0) / 500.0;   // CSS 字重换算 UIKit 刻度
+        if(w < -1.0) w = -1.0;
+        if(w > 1.0)  w = 1.0;
+        g_label.font = [UIFont systemFontOfSize:g_fontSize weight:w];
+        g_label.textColor = [UIColor whiteColor];
+        g_label.userInteractionEnabled = NO;           // 纯展示：不吃触摸
+        g_label.translatesAutoresizingMaskIntoConstraints = NO;
+        CALayer* ls = [g_label layer];
+        if(g_shadow){
+            ls.shadowColor   = g_shadowCol.CGColor;
+            ls.shadowOpacity = 1.0;
+            ls.shadowRadius  = (float)g_shadowBlur;
+            ls.shadowOffset  = CGSizeMake(g_shadowDX, g_shadowDY);
+            ls.masksToBounds = NO;
+        }
     }
-    if(scene){
-        g_window = [[FPSDynWindow alloc] initWithWindowScene:scene];
-        dlog(@"window with scene");
-    }else{
-        g_window = [[FPSDynWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
-        dlog(@"WARN: no scene, plain window");
-    }
-    g_window.windowLevel = UIWindowLevelAlert;
-    g_window.backgroundColor = [UIColor clearColor];
-    g_window.hidden = NO;
-    g_window.userInteractionEnabled = YES;
-    g_window.frame = (CGRect){CGPointZero, [[UIScreen mainScreen] bounds].size};
-    // 参与 UIKit 转屏的钥匙
-    g_window.rootViewController = [[FPSDynRootVC alloc] init];
-
-    g_label = [[UILabel alloc] initWithFrame:CGRectZero];
-    g_label.text = @"-- FPS";
-    // 配置用 CSS 字重(100~900)，换算到 UIKit 刻度(-1.0~1.0)
-    CGFloat w = (g_fontWeight - 400.0) / 500.0;
-    if(w < -1.0) w = -1.0;
-    if(w > 1.0)  w = 1.0;
-    g_label.font = [UIFont systemFontOfSize:g_fontSize weight:w];
-    g_label.textColor = [UIColor whiteColor];
-    g_label.userInteractionEnabled = YES;
-    g_label.translatesAutoresizingMaskIntoConstraints = NO;
-    [g_window addSubview:g_label];
-
-    // 文字阴影（配置开关，默认关）
-    CALayer* ls = [g_label layer];
-    if(g_shadow){
-        ls.shadowColor   = g_shadowCol.CGColor;
-        ls.shadowOpacity = 1.0;
-        ls.shadowRadius  = (float)g_shadowBlur;
-        ls.shadowOffset  = CGSizeMake(g_shadowDX, g_shadowDY);
-        ls.masksToBounds = NO;
-    }
-
-    // 对标原版：topAnchor/trailingAnchor 钉右上角，常量 = 拖动边距
-    g_topC   = [g_label.topAnchor constraintEqualToAnchor:g_window.topAnchor
-                                                constant:g_offY];
-    g_trailC = [g_label.trailingAnchor constraintEqualToAnchor:g_window.trailingAnchor
-                                                     constant:-g_offX];
+    [g_label removeFromSuperview];
+    [host addSubview:g_label];
+    g_topC   = [g_label.topAnchor constraintEqualToAnchor:host.topAnchor constant:g_offY];
+    g_trailC = [g_label.trailingAnchor constraintEqualToAnchor:host.trailingAnchor constant:-g_offX];
     g_topC.active = YES;
     g_trailC.active = YES;
-
-    UIPanGestureRecognizer* pan = [[UIPanGestureRecognizer alloc]
-        initWithTarget:self action:@selector(onPan:)];
-    [g_label addGestureRecognizer:pan];
-    UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
-        initWithTarget:self action:@selector(onTap:)];
-    [g_label addGestureRecognizer:tap];
-    dlog(@"window built, constraints attached");
-}
-
-- (void)onPan:(UIPanGestureRecognizer*)g {
-    if(g_lockPos) return; // 位置锁定：忽略拖动
-    if(!g_window || !g_topC || !g_trailC) return;
-    @try {
-        NSInteger st = [g state];
-        if(st == UIGestureRecognizerStateBegan || st == UIGestureRecognizerStateChanged){
-            CGPoint tr = [g translationInView:g_window];
-            CGRect b = g_window.bounds;
-            CGFloat lw = g_label.bounds.size.width, lh = g_label.bounds.size.height;
-            g_offX -= tr.x;   // 往右拖 → 距右边缘减小
-            g_offY += tr.y;   // 往下拖 → 距顶边缘增大
-            if(g_offX < 8) g_offX = 8;
-            if(g_offX > b.size.width - lw - 8)  g_offX = b.size.width - lw - 8;
-            if(g_offY < 8) g_offY = 8;
-            if(g_offY > b.size.height - lh - 8) g_offY = b.size.height - lh - 8;
-            g_trailC.constant = -g_offX;
-            g_topC.constant   =  g_offY;
-            [g setTranslation:CGPointZero inView:g_window];
-        }else if(st == UIGestureRecognizerStateEnded){
-            saveState();
-            dlog(@"offset saved: %.0f,%.0f", (double)g_offX, (double)g_offY);
-        }
-    } @catch (NSException* e) {
-        dlog(@"EXC in pan: %@", e);
-    }
-}
-
-- (void)onTap:(UITapGestureRecognizer*)g {
-    if([g state] != UIGestureRecognizerStateEnded) return;
-    @try {
-        g_colorIdx = (g_colorIdx + 1) % 7;
-        g_lastColorIdx = -1;
-        saveState();
-        dlog(@"color -> %d (%s)", g_colorIdx, kColorNames[g_colorIdx]);
-    } @catch (NSException* e) {
-        dlog(@"EXC in tap: %@", e);
-    }
+    g_lastColorIdx = -1;
+    dlog(@"attached to host window %@, pos %.0f,%.0f", host, (double)g_offX, (double)g_offY);
 }
 
 - (void)tick:(NSTimer*)t {
@@ -400,36 +300,25 @@ static void saveState(void){
         static int tickCount = 0;
         tickCount++;
         if(!g_enabled){
-            if(g_window && !g_window.hidden) g_window.hidden = YES;
+            if(g_label && !g_label.hidden) g_label.hidden = YES;
             return;
         }
         [self buildIfNeeded];
-        if(g_window.hidden) g_window.hidden = NO;
+        if(!g_label || !g_label.window) return;
+        if(g_label.hidden) g_label.hidden = NO;
 
         // 锁屏隐藏
         if(g_hideOnLock && fpsdyn_isLocked()){
-            if(!g_window.hidden) g_window.hidden = YES;
+            if(!g_label.hidden) g_label.hidden = YES;
             return;
-        }
-
-        // 转屏诊断（log=1 时可见）
-        {
-            static CGSize lastB = {0, 0};
-            CGSize cb = g_window.bounds.size;
-            CGRect sbNow = [[UIScreen mainScreen] bounds];
-            CGAffineTransform t = g_window.transform;
-            if(!CGSizeEqualToSize(cb, lastB) || !CGAffineTransformIsIdentity(t)){
-                dlog(@"rot: screen=%.0fx%.0f winB=%.0fx%.0f t=(%.2f,%.2f,%.2f,%.2f)",
-                     (double)sbNow.size.width, (double)sbNow.size.height,
-                     (double)cb.width, (double)cb.height,
-                     (double)t.a, (double)t.b, (double)t.c, (double)t.d);
-                lastB = cb;
-            }
         }
 
         // 每 5 tick 热更新配置
         if((tickCount % 5) == 0){
             loadConfig();
+            // 位置热更新（配置表控制）
+            if(g_topC)   g_topC.constant   = g_offY;
+            if(g_trailC) g_trailC.constant = -g_offX;
             // 阴影热更新
             if(g_label){
                 CALayer* ls = [g_label layer];
@@ -499,7 +388,7 @@ static void saveState(void){
 __attribute__((constructor))
 static void fpsdyn_init(void){
     @try {
-        dlog(@"constructor hit (v4.0)");
+        dlog(@"constructor hit (v4.5)");
         ensureDefaultConfig();
         loadConfig();
         dlog(@"config: enabled=%d fontSize=%.0f off=%.0f,%.0f color=%d",
