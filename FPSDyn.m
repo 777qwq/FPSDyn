@@ -54,7 +54,7 @@ static const unsigned char kPalette[5][4] = {
     {255,255,255,140},  // 4 半透明白 #FFFFFF8C
     {255,69,58,255},    // 5 性能红 #FF453A
 };
-static const char* kColorNames[7] = {"AUTO","跟随系统","荧光绿","COD黄","霓虹青","半透明白","性能红"};
+__attribute__((unused)) static const char* kColorNames[7] = {"AUTO","跟随系统","荧光绿","COD黄","霓虹青","半透明白","性能红"};
 
 // ---------- 工具 ----------
 static int hexNib(int c){
