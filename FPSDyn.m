@@ -356,20 +356,6 @@ static void saveState(void){
     dlog(@"window built, constraints attached");
 }
 
-// 差值混合装/卸：白字 × difference = 深底显白、浅底显黑，纯色输出
-- (void)setInvert:(BOOL)on {
-    if(!g_label) return;
-    if(on){
-        g_label.layer.compositingFilter = @"differenceBlendMode";
-        g_label.textColor = [UIColor whiteColor];
-        dlog(@"invert ON");
-    }else{
-        g_label.layer.compositingFilter = nil;
-        g_lastColorIdx = -1; // 强制下一帧重设色盘色
-        dlog(@"invert OFF");
-    }
-}
-
 - (void)onPan:(UIPanGestureRecognizer*)g {
     if(g_lockPos) return; // 位置锁定：忽略拖动
     if(!g_window || !g_topC || !g_trailC) return;
@@ -468,11 +454,13 @@ static void saveState(void){
         g_label.text = [NSString stringWithFormat:@"%.0f FPS", fps];
         [g_label sizeToFit];
 
-        // 颜色：AUTO=阈值变色，1=差值混合背色反转，2-6=固定色盘
+        // 颜色：AUTO=阈值变色，1=labelColor 动态色(系统判定纯黑/纯白)，2-6=固定色盘
         if(g_colorIdx == 1){
-            if(g_lastColorIdx != 1){ g_lastColorIdx = 1; [self setInvert:YES]; }
-        }else{
-            if(g_label.layer.compositingFilter) [self setInvert:NO];
+            if(g_lastColorIdx != 1){
+                g_lastColorIdx = 1;
+                g_label.textColor = [UIColor labelColor];
+                dlog(@"adaptive -> labelColor");
+            }
         }
         if(g_colorIdx > 1){
             if(g_colorIdx != g_lastColorIdx){
