@@ -362,7 +362,7 @@ static void saveState(void){
     if(!g_window || !g_label) return;
     if(on && !g_vibView){
         UIBlurEffect* blur = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterial];
-        g_vibView = [[UIVisualEffectView alloc] initWithEffect:[[UIVibrancyEffect alloc] initWithBlurEffect:blur]];
+        g_vibView = [[UIVisualEffectView alloc] initWithEffect:[UIVibrancyEffect effectForBlurEffect:blur]];
         g_vibView.translatesAutoresizingMaskIntoConstraints = NO;
         g_vibView.userInteractionEnabled = YES;
         [g_window addSubview:g_vibView];
