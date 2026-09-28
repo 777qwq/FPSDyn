@@ -288,7 +288,7 @@ static BOOL fpsdyn_isLocked(void){
     g_window.windowLevel = UIWindowLevelAlert;
     g_window.backgroundColor = [UIColor clearColor];
     g_window.hidden = NO;
-    g_window.userInteractionEnabled = YES;
+    g_window.userInteractionEnabled = NO;     // 纯展示：触摸全穿透，不挡主界面
     g_window.frame = (CGRect){CGPointZero, [[UIScreen mainScreen] bounds].size};
     // 参与 UIKit 转屏的钥匙
     g_window.rootViewController = [[FPSDynRootVC alloc] init];
@@ -434,7 +434,7 @@ static BOOL fpsdyn_isLocked(void){
 __attribute__((constructor))
 static void fpsdyn_init(void){
     @try {
-        dlog(@"constructor hit (v4.6)");
+        dlog(@"constructor hit (v4.6.1)");
         ensureDefaultConfig();
         loadConfig();
         dlog(@"config: enabled=%d fontSize=%.0f off=%.0f,%.0f color=%d",
