@@ -15,6 +15,8 @@
 			<string>PSSelectableCell</string>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
+			<key>identifier</key>
+			<string>color0</string>
 			<key>key</key>
 			<string>colorIndex</string>
 			<key>label</key>
@@ -27,6 +29,8 @@
 			<string>PSSelectableCell</string>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
+			<key>identifier</key>
+			<string>color1</string>
 			<key>key</key>
 			<string>colorIndex</string>
 			<key>label</key>
@@ -39,6 +43,8 @@
 			<string>PSSelectableCell</string>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
+			<key>identifier</key>
+			<string>color2</string>
 			<key>key</key>
 			<string>colorIndex</string>
 			<key>label</key>
@@ -51,6 +57,8 @@
 			<string>PSSelectableCell</string>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
+			<key>identifier</key>
+			<string>color3</string>
 			<key>key</key>
 			<string>colorIndex</string>
 			<key>label</key>
@@ -63,6 +71,8 @@
 			<string>PSSelectableCell</string>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
+			<key>identifier</key>
+			<string>color4</string>
 			<key>key</key>
 			<string>colorIndex</string>
 			<key>label</key>
@@ -75,6 +85,8 @@
 			<string>PSSelectableCell</string>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
+			<key>identifier</key>
+			<string>color5</string>
 			<key>key</key>
 			<string>colorIndex</string>
 			<key>label</key>
@@ -87,6 +99,8 @@
 			<string>PSSelectableCell</string>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
+			<key>identifier</key>
+			<string>color6</string>
 			<key>key</key>
 			<string>colorIndex</string>
 			<key>label</key>

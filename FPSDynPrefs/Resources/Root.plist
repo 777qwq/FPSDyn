@@ -150,6 +150,15 @@
 		</dict>
 		<dict>
 			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>颜色格式 RGBA 十六进制。透明度对照：
+FF=100% 实心最重 · CC=80% 默认
+99=60% 适中 · 80=50% 轻盈
+66=40% 很淡 · 4D=30% 隐约可见</string>
+		</dict>
+		<dict>
+			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
 			<string>000000CC</string>
