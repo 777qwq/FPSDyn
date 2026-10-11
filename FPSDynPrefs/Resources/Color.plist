@@ -20,7 +20,7 @@
 			<key>label</key>
 			<string>阈值变色</string>
 			<key>value</key>
-			<integer>0</integer>
+			<string>0</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -32,7 +32,7 @@
 			<key>label</key>
 			<string>跟随系统</string>
 			<key>value</key>
-			<integer>1</integer>
+			<string>1</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -44,7 +44,7 @@
 			<key>label</key>
 			<string>荧光绿</string>
 			<key>value</key>
-			<integer>2</integer>
+			<string>2</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -56,7 +56,7 @@
 			<key>label</key>
 			<string>COD黄</string>
 			<key>value</key>
-			<integer>3</integer>
+			<string>3</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -68,7 +68,7 @@
 			<key>label</key>
 			<string>霓虹青</string>
 			<key>value</key>
-			<integer>4</integer>
+			<string>4</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -80,7 +80,7 @@
 			<key>label</key>
 			<string>半透明白</string>
 			<key>value</key>
-			<integer>5</integer>
+			<string>5</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -92,7 +92,7 @@
 			<key>label</key>
 			<string>性能红</string>
 			<key>value</key>
-			<integer>6</integer>
+			<string>6</string>
 		</dict>
 		<dict>
 			<key>cell</key>
