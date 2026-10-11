@@ -42,67 +42,17 @@
 		</dict>
 		<dict>
 			<key>cell</key>
-			<string>PSLinkListCell</string>
+			<string>PSLinkCell</string>
 			<key>default</key>
 			<integer>0</integer>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
 			<key>detail</key>
-			<string>PSListItemsController</string>
+			<string>FPSDynColorListController</string>
 			<key>key</key>
 			<string>colorIndex</string>
 			<key>label</key>
 			<string>颜色</string>
-			<key>validTitles</key>
-			<array>
-				<string>阈值变色</string>
-				<string>跟随系统</string>
-				<string>荧光绿</string>
-				<string>COD黄</string>
-				<string>霓虹青</string>
-				<string>半透明白</string>
-				<string>性能红</string>
-			</array>
-			<key>validValues</key>
-			<array>
-				<integer>0</integer>
-				<integer>1</integer>
-				<integer>2</integer>
-				<integer>3</integer>
-				<integer>4</integer>
-				<integer>5</integer>
-				<integer>6</integer>
-			</array>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>footerText</key>
-			<string>仅"阈值变色"时生效：帧率 ≥ 绿色阈值显示绿，≥ 黄色阈值显示黄，否则红。</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSEditTextCell</string>
-			<key>default</key>
-			<real>50.0</real>
-			<key>defaults</key>
-			<string>com.user.fpsdyn</string>
-			<key>key</key>
-			<string>thGreen</string>
-			<key>label</key>
-			<string>绿色阈值</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSEditTextCell</string>
-			<key>default</key>
-			<real>40.0</real>
-			<key>defaults</key>
-			<string>com.user.fpsdyn</string>
-			<key>key</key>
-			<string>thYellow</string>
-			<key>label</key>
-			<string>黄色阈值</string>
 		</dict>
 		<dict>
 			<key>cell</key>
