@@ -37,7 +37,7 @@ static NSString* const kPrefDomain = @"com.user.fpsdyn";
     if(num){ CFNumberGetValue(num, kCFNumberIntType, &v); CFRelease(num); }
     return v;
 }
-- (BOOL)isColorRow:(NSIndexPath*)indexPath { return indexPath.row < 7; }
+- (BOOL)isColorRow:(NSIndexPath*)indexPath { return indexPath.section == 0 && indexPath.row < 7; }
 - (UITableViewCell*)tableView:(UITableView*)tv cellForRowAtIndexPath:(NSIndexPath*)indexPath {
     UITableViewCell* cell = [super tableView:tv cellForRowAtIndexPath:indexPath];
     if([self isColorRow:indexPath]){
