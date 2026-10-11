@@ -34,6 +34,7 @@ static CGFloat  g_shadowDX  = 0, g_shadowDY = 1;
 static UIColor* g_shadowCol = nil;
 static int      g_thCount   = 0;
 static CGFloat  g_thBound[16];
+static CGFloat  g_appliedFontSize = 0, g_appliedFontWeight = 0;
 static unsigned char g_thColor[16][4];
 
 // ---------- 运行状态 ----------
@@ -122,10 +123,13 @@ static void loadConfig(void){
     if(g_colorIdx > 6) g_colorIdx = 6;
     g_offX = prefD(@"dragX", 20);
     g_offY = prefD(@"dragY", 60);
-    // AUTO 内置三档阈值（50→绿 40→黄 0→红），降序排列
+    // AUTO 三档阈值：thGreen→绿 thYellow→黄 0→红（设置页可调）
     g_thCount = 3;
-    g_thBound[0]=50; g_thColor[0][0]=0x30;g_thColor[0][1]=0xD1;g_thColor[0][2]=0x58;g_thColor[0][3]=255;
-    g_thBound[1]=40; g_thColor[1][0]=0xFF;g_thColor[1][1]=0x9F;g_thColor[1][2]=0x0A;g_thColor[1][3]=255;
+    double tg = prefD(@"thGreen", 50), ty = prefD(@"thYellow", 40);
+    if(tg < 1) tg = 1; if(tg > 240) tg = 240;
+    if(ty < 0) ty = 0; if(ty > tg-1) ty = tg-1;
+    g_thBound[0]=tg; g_thColor[0][0]=0x30;g_thColor[0][1]=0xD1;g_thColor[0][2]=0x58;g_thColor[0][3]=255;
+    g_thBound[1]=ty; g_thColor[1][0]=0xFF;g_thColor[1][1]=0x9F;g_thColor[1][2]=0x0A;g_thColor[1][3]=255;
     g_thBound[2]=0;  g_thColor[2][0]=0xFF;g_thColor[2][1]=0x45;g_thColor[2][2]=0x3A;g_thColor[2][3]=255;
     g_lastColorIdx = -1;
 }
@@ -269,9 +273,18 @@ static BOOL fpsdyn_isLocked(void){
             }
         }
 
-        // 每 5 tick 热更新配置
-        if((tickCount % 5) == 0){
+        // 每 2 tick 热更新配置（约 2 秒生效）
+        if((tickCount % 2) == 0){
             loadConfig();
+            // 字体热生效（仅变化时重建）
+            if(g_label && (g_fontSize != g_appliedFontSize || g_fontWeight != g_appliedFontWeight)){
+                CGFloat fw = (g_fontWeight - 400.0) / 500.0;
+                if(fw < -1.0) fw = -1.0;
+                if(fw > 1.0)  fw = 1.0;
+                g_label.font = [UIFont systemFontOfSize:g_fontSize weight:fw];
+                g_appliedFontSize = g_fontSize;
+                g_appliedFontWeight = g_fontWeight;
+            }
             // 位置热更新（配置表控制）
             if(g_topC)   g_topC.constant   = g_offY;
             if(g_trailC) g_trailC.constant = -g_offX;
@@ -344,7 +357,7 @@ static BOOL fpsdyn_isLocked(void){
 __attribute__((constructor))
 static void fpsdyn_init(void){
     @try {
-        dlog(@"constructor hit (v5.0.0)");
+        dlog(@"constructor hit (v5.1.0)");
         loadConfig();
         dlog(@"config: enabled=%d fontSize=%.0f off=%.0f,%.0f color=%d",
              g_enabled, (double)g_fontSize, (double)g_offX, (double)g_offY, g_colorIdx);

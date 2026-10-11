@@ -47,12 +47,12 @@
 			<string>PSLinkListCell</string>
 			<key>detail</key>
 			<string>PSListItemsController</string>
+			<key>default</key>
+			<integer>0</integer>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
 			<key>key</key>
 			<string>colorIndex</string>
-			<key>default</key>
-			<integer>0</integer>
 			<key>validTitles</key>
 			<array>
 				<string>自动变色</string>
@@ -86,7 +86,7 @@
 			<key>key</key>
 			<string>fontSize</string>
 			<key>min</key>
-			<real>10</real>
+			<real>8</real>
 			<key>max</key>
 			<real>40</real>
 			<key>showValue</key>
@@ -99,12 +99,12 @@
 			<string>PSLinkListCell</string>
 			<key>detail</key>
 			<string>PSListItemsController</string>
+			<key>default</key>
+			<integer>600</integer>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
 			<key>key</key>
 			<string>fontWeight</string>
-			<key>default</key>
-			<integer>600</integer>
 			<key>validTitles</key>
 			<array>
 				<string>细</string>
@@ -124,6 +124,54 @@
 		</dict>
 		<dict>
 			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>仅"自动变色"时生效：帧率 ≥ 绿色阈值显示绿，≥ 黄色阈值显示黄，否则红。</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>50</real>
+			<key>defaults</key>
+			<string>com.user.fpsdyn</string>
+			<key>key</key>
+			<string>thGreen</string>
+			<key>min</key>
+			<real>10</real>
+			<key>max</key>
+			<real>120</real>
+			<key>showValue</key>
+			<true/>
+			<key>label</key>
+			<string>绿色阈值</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>40</real>
+			<key>defaults</key>
+			<string>com.user.fpsdyn</string>
+			<key>key</key>
+			<string>thYellow</string>
+			<key>min</key>
+			<real>5</real>
+			<key>max</key>
+			<real>60</real>
+			<key>showValue</key>
+			<true/>
+			<key>label</key>
+			<string>黄色阈值</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>文字阴影</string>
+		</dict>
+		<dict>
+			<key>cell</key>
 			<string>PSSwitchCell</string>
 			<key>default</key>
 			<false/>
@@ -132,13 +180,79 @@
 			<key>key</key>
 			<string>shadow</string>
 			<key>label</key>
-			<string>文字阴影</string>
+			<string>开启阴影</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>4</real>
+			<key>defaults</key>
+			<string>com.user.fpsdyn</string>
+			<key>key</key>
+			<string>shadowBlur</string>
+			<key>min</key>
+			<real>0</real>
+			<key>max</key>
+			<real>12</real>
+			<key>showValue</key>
+			<true/>
+			<key>label</key>
+			<string>模糊半径</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>0</real>
+			<key>defaults</key>
+			<string>com.user.fpsdyn</string>
+			<key>key</key>
+			<string>shadowOffsetX</string>
+			<key>min</key>
+			<real>-5</real>
+			<key>max</key>
+			<real>5</real>
+			<key>showValue</key>
+			<true/>
+			<key>label</key>
+			<string>水平偏移</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>1</real>
+			<key>defaults</key>
+			<string>com.user.fpsdyn</string>
+			<key>key</key>
+			<string>shadowOffsetY</string>
+			<key>min</key>
+			<real>-5</real>
+			<key>max</key>
+			<real>5</real>
+			<key>showValue</key>
+			<true/>
+			<key>label</key>
+			<string>垂直偏移</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSEditTextCell</string>
+			<key>default</key>
+			<string>000000CC</string>
+			<key>defaults</key>
+			<string>com.user.fpsdyn</string>
+			<key>key</key>
+			<string>shadowColor</string>
+			<key>label</key>
+			<string>颜色(RGBA)</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>位置（距屏幕右上角）</string>
+			<string>位置</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -180,7 +294,7 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>footerText</key>
-			<string>修改后约 5 秒内生效，无需重启。AUTO 颜色按帧率变色：≥50 绿 / ≥40 黄 / 低于 红。</string>
+			<string>修改后约 2 秒内生效，无需重启。</string>
 		</dict>
 		<dict>
 			<key>cell</key>
