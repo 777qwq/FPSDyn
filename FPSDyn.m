@@ -27,7 +27,6 @@ static CGFloat  g_offX      = 20;   // 距右边缘
 static CGFloat  g_offY      = 60;   // 距顶边缘
 static int      g_colorIdx  = 0;    // 0=AUTO 1=跟随系统 2-6=色盘
 static int      g_hideOnLock= 1;    // 1=锁屏隐藏
-static int      g_log       = 0;    // 日志开关
 static int      g_shadow    = 0;    // 1=文字阴影开启
 static CGFloat  g_shadowBlur= 4;
 static CGFloat  g_shadowDX  = 0, g_shadowDY = 1;
@@ -72,14 +71,7 @@ static UIColor* RGBAHex(NSString* s){
     a = hexNib([s characterAtIndex:6])*16 + hexNib([s characterAtIndex:7]);
     return [UIColor colorWithRed:r/255.0 green:g/255.0 blue:b/255.0 alpha:a/255.0];
 }
-static void dlog(NSString* fmt, ...){
-    if(!g_log) return; // 日志开关：plist 里 log=1 开启
-    va_list ap; va_start(ap, fmt);
-    NSString* s = [[NSString alloc] initWithFormat:fmt arguments:ap];
-    va_end(ap);
-    FILE* f = fopen("/var/mobile/Library/FPSDyn.log", "a");
-    if(f){ fprintf(f, "[FPSDyn] %s\n", [s UTF8String]); fclose(f); }
-}
+static void dlog(NSString* fmt, ...){ (void)fmt; }
 
 
 // ---------- 配置读取（CFPreferences 域 com.user.fpsdyn，与设置页同域） ----------
@@ -111,7 +103,6 @@ static void loadConfig(void){
     g_fontSize   = prefD(@"fontSize", 16);
     g_fontWeight = prefD(@"fontWeight", 600);
     g_hideOnLock = prefI(@"hideOnLock", 1);
-    g_log        = prefI(@"log", 0);
     g_shadow     = prefI(@"shadow", 0);
     g_shadowBlur = prefD(@"shadowBlur", 4);
     g_shadowDX   = prefD(@"shadowOffsetX", 0);
@@ -357,7 +348,7 @@ static BOOL fpsdyn_isLocked(void){
 __attribute__((constructor))
 static void fpsdyn_init(void){
     @try {
-        dlog(@"constructor hit (v5.1.0)");
+        dlog(@"constructor hit (v5.1.1)");
         loadConfig();
         dlog(@"config: enabled=%d fontSize=%.0f off=%.0f,%.0f color=%d",
              g_enabled, (double)g_fontSize, (double)g_offX, (double)g_offY, g_colorIdx);
