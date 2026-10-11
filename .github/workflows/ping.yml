@@ -1,0 +1,9 @@
+name: ping
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  t:
+    runs-on: macos-14
+    steps:
+      - run: echo hello
