@@ -17,8 +17,9 @@ static NSString* const kPrefDomain = @"com.user.fpsdyn";
 }
 @end
 
-// 颜色选择页：手动处理单选。
-// 判断依据用 specifier 的 "value" 属性（identifier 键在 plist 加载时不保证映射到 spec.identifier）
+// 颜色选择页：手动单选。
+// 实测 specifier 从 plist 加载后 identifier/value 属性均取不到（propertyForKey 返回 nil），
+// 故用 indexPath.row 判定：颜色行固定位于第 0~6 行（Color.plist 前 7 项），行号即 colorIndex 值。
 @interface FPSDynColorListController : PSListController
 @end
 @implementation FPSDynColorListController
@@ -31,39 +32,30 @@ static NSString* const kPrefDomain = @"com.user.fpsdyn";
     return _specifiers;
 }
 - (int)currentColorIndex {
-    CFPropertyListRef v = CFPreferencesCopyAppValue(CFSTR("colorIndex"), (__bridge CFStringRef)kPrefDomain);
-    int r = 0;
-    if(v){ r = [(__bridge_transfer NSNumber*)v intValue]; }
-    return r;
+    CFNumberRef num = (CFNumberRef)CFPreferencesCopyAppValue(CFSTR("colorIndex"), (__bridge CFStringRef)kPrefDomain);
+    int v = 0;
+    if(num){ CFNumberGetValue(num, kCFNumberIntType, &v); CFRelease(num); }
+    return v;
 }
-// 颜色行 = 带 value 属性且能转成 int 的 specifier（阈值输入行没有 value）
-- (BOOL)isColorRow:(PSSpecifier*)spec {
-    if(!spec) return NO;
-    id v = [spec propertyForKey:@"value"];
-    return v && [v respondsToSelector:@selector(intValue)];
-}
+- (BOOL)isColorRow:(NSIndexPath*)indexPath { return indexPath.row < 7; }
 - (UITableViewCell*)tableView:(UITableView*)tv cellForRowAtIndexPath:(NSIndexPath*)indexPath {
     UITableViewCell* cell = [super tableView:tv cellForRowAtIndexPath:indexPath];
-    PSSpecifier* spec = [self specifierAtIndexPath:indexPath];
-    if([self isColorRow:spec]){
-        id v = [spec propertyForKey:@"value"];
-        cell.accessoryType = ([v intValue] == self.currentColorIndex)
+    if([self isColorRow:indexPath]){
+        cell.accessoryType = (indexPath.row == self.currentColorIndex)
             ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
     }
     return cell;
 }
 - (void)tableView:(UITableView*)tv didSelectRowAtIndexPath:(NSIndexPath*)indexPath {
-    PSSpecifier* spec = [self specifierAtIndexPath:indexPath];
-    if([self isColorRow:spec]){
-        id v = [spec propertyForKey:@"value"];
-        int ni = [v intValue];
+    if([self isColorRow:indexPath]){
+        int ni = (int)indexPath.row;
         CFNumberRef num = CFNumberCreate(NULL, kCFNumberIntType, &ni);
         CFPreferencesSetAppValue(CFSTR("colorIndex"), num, (__bridge CFStringRef)kPrefDomain);
         CFRelease(num);
         CFPreferencesAppSynchronize((__bridge CFStringRef)kPrefDomain);
         [tv reloadData];
         [tv deselectRowAtIndexPath:indexPath animated:YES];
-        return;   // 已自行处理，不再走 super（防止 super 的 push 逻辑干扰）
+        return;
     }
     @try { [super tableView:tv didSelectRowAtIndexPath:indexPath]; } @catch(NSException* e){}
 }
