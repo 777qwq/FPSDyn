@@ -14,6 +14,7 @@ FPSDynPrefs_FILES = FPSDynPrefs/RootListController.m
 FPSDynPrefs_INSTALL_PATH = /Library/PreferenceBundles
 FPSDynPrefs_FRAMEWORKS = UIKit Foundation
 FPSDynPrefs_PRIVATE_FRAMEWORKS = Preferences
+FPSDynPrefs_RESOURCE_DIRS = FPSDynPrefs/Resources
 FPSDynPrefs_CFLAGS = -fobjc-arc
 
 include $(THEOS_MAKE_PATH)/tweak.mk

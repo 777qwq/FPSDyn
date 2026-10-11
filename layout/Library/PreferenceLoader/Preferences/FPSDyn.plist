@@ -8,6 +8,8 @@
 		<string>FPSDynPrefs</string>
 		<key>cell</key>
 		<string>PSLinkCell</string>
+		<key>icon</key>
+		<string>FPSDyn.png</string>
 		<key>label</key>
 		<string>FPSDyn</string>
 		<key>isController</key>
