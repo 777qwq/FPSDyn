@@ -2,8 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>title</key>
-	<string>FPSDyn</string>
 	<key>items</key>
 	<array>
 		<dict>
@@ -45,17 +43,19 @@
 		<dict>
 			<key>cell</key>
 			<string>PSLinkListCell</string>
-			<key>detail</key>
-			<string>PSListItemsController</string>
 			<key>default</key>
 			<integer>0</integer>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
+			<key>detail</key>
+			<string>PSListItemsController</string>
 			<key>key</key>
 			<string>colorIndex</string>
+			<key>label</key>
+			<string>颜色</string>
 			<key>validTitles</key>
 			<array>
-				<string>自动变色</string>
+				<string>阈值变色</string>
 				<string>跟随系统</string>
 				<string>荧光绿</string>
 				<string>COD黄</string>
@@ -73,14 +73,42 @@
 				<integer>5</integer>
 				<integer>6</integer>
 			</array>
-			<key>label</key>
-			<string>颜色</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>footerText</key>
+			<string>仅"阈值变色"时生效：帧率 ≥ 绿色阈值显示绿，≥ 黄色阈值显示黄，否则红。</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
-			<real>16</real>
+			<real>50.0</real>
+			<key>defaults</key>
+			<string>com.user.fpsdyn</string>
+			<key>key</key>
+			<string>thGreen</string>
+			<key>label</key>
+			<string>绿色阈值</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSEditTextCell</string>
+			<key>default</key>
+			<real>40.0</real>
+			<key>defaults</key>
+			<string>com.user.fpsdyn</string>
+			<key>key</key>
+			<string>thYellow</string>
+			<key>label</key>
+			<string>黄色阈值</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSEditTextCell</string>
+			<key>default</key>
+			<real>16.0</real>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
 			<key>key</key>
@@ -91,14 +119,16 @@
 		<dict>
 			<key>cell</key>
 			<string>PSLinkListCell</string>
-			<key>detail</key>
-			<string>PSListItemsController</string>
 			<key>default</key>
 			<integer>600</integer>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
+			<key>detail</key>
+			<string>PSListItemsController</string>
 			<key>key</key>
 			<string>fontWeight</string>
+			<key>label</key>
+			<string>字重</string>
 			<key>validTitles</key>
 			<array>
 				<string>细</string>
@@ -113,38 +143,6 @@
 				<integer>600</integer>
 				<integer>800</integer>
 			</array>
-			<key>label</key>
-			<string>字重</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>footerText</key>
-			<string>仅"自动变色"时生效：帧率 ≥ 绿色阈值显示绿，≥ 黄色阈值显示黄，否则红。</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSEditTextCell</string>
-			<key>default</key>
-			<real>50</real>
-			<key>defaults</key>
-			<string>com.user.fpsdyn</string>
-			<key>key</key>
-			<string>thGreen</string>
-			<key>label</key>
-			<string>绿色阈值</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSEditTextCell</string>
-			<key>default</key>
-			<real>40</real>
-			<key>defaults</key>
-			<string>com.user.fpsdyn</string>
-			<key>key</key>
-			<string>thYellow</string>
-			<key>label</key>
-			<string>黄色阈值</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -168,7 +166,7 @@
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
-			<real>4</real>
+			<real>4.0</real>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
 			<key>key</key>
@@ -180,7 +178,7 @@
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
-			<real>0</real>
+			<real>0.0</real>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
 			<key>key</key>
@@ -192,7 +190,7 @@
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
-			<real>1</real>
+			<real>1.0</real>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
 			<key>key</key>
@@ -222,7 +220,7 @@
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
-			<real>20</real>
+			<real>20.0</real>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
 			<key>key</key>
@@ -234,7 +232,7 @@
 			<key>cell</key>
 			<string>PSEditTextCell</string>
 			<key>default</key>
-			<real>60</real>
+			<real>60.0</real>
 			<key>defaults</key>
 			<string>com.user.fpsdyn</string>
 			<key>key</key>
@@ -243,5 +241,7 @@
 			<string>距顶边缘</string>
 		</dict>
 	</array>
+	<key>title</key>
+	<string>FPSDyn</string>
 </dict>
 </plist>
