@@ -1,0 +1,9 @@
+Package: cn.qwq.fpsdyn
+Name: FPS悬浮显示
+Version: 1.1.0
+Architecture: iphoneos-arm
+Description: FPS 悬浮显示：右上角实时帧率，阈值变色/固定色盘、字号阴影位置可调，锁屏隐藏，2 秒热生效。
+Maintainer: 777qwq
+Author: 777qwq
+Section: Tweaks
+Depends: mobilesubstrate, preferenceloader, firmware (>= 14.0)

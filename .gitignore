@@ -1,0 +1,7 @@
+.theos/
+obj/
+packages/
+*.deb
+MiniUIKit.h
+!releases/
+!*.deb
